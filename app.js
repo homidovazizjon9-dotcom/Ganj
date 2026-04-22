@@ -30,7 +30,7 @@ const firebaseConfig = {
   storageBucket: "ganj-20dbb.firebasestorage.app",
   messagingSenderId: "859797495197",
   appId: "1:859797495197:web:87172b5aa745c30a556374",
-  databaseURL: "https://ganj-20dbb-default-rtdb.firebaseio.com"
+  databaseURL: "https://ganj-20dbb-default-rtdb.europe-west1.firebasedatabase.app"
 };
 
 const app = initializeApp(firebaseConfig);
