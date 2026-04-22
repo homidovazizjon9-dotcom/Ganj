@@ -82,7 +82,28 @@ let currentYear = now.getFullYear();
 // ---- Init ----
 let isAppInitialized = false;
 
+// ---- Theme ----
+function initTheme() {
+  const saved = localStorage.getItem('ganj-theme') || 'light';
+  applyTheme(saved);
+}
+function applyTheme(theme) {
+  document.body.classList.toggle('light', theme === 'light');
+  localStorage.setItem('ganj-theme', theme);
+}
+function toggleTheme() {
+  const isLight = document.body.classList.contains('light');
+  applyTheme(isLight ? 'dark' : 'light');
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Apply saved theme immediately (before auth)
+  initTheme();
+
+  // Wire theme toggles
+  document.getElementById("themeToggle")?.addEventListener("click", toggleTheme);
+  document.getElementById("themeToggleMob")?.addEventListener("click", toggleTheme);
+
   // Show loader immediately, hide authScreen until auth resolves
   document.getElementById("authScreen").classList.add("hidden");
 
