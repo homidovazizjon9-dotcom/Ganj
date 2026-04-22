@@ -80,9 +80,17 @@ let currentMonth = now.getMonth();
 let currentYear = now.getFullYear();
 
 // ---- Init ----
+let isAppInitialized = false;
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Show loader immediately, hide authScreen until auth resolves
+  document.getElementById("authScreen").classList.add("hidden");
+
   // Auth state listener — controls what user sees
   onAuthStateChanged(auth, (user) => {
+    // Always hide loader once auth state is known
+    document.getElementById("loaderScreen").classList.add("hidden");
+
     if (user) {
       // Check whitelist if it has entries
       if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(user.email)) {
@@ -94,17 +102,18 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("app-shell").classList.remove("hidden");
       renderUserInfo(user);
-      setupUI();
-      subscribeToData();
+      // Only setup UI and subscribe once
+      if (!isAppInitialized) {
+        isAppInitialized = true;
+        setupUI();
+        subscribeToData();
+      }
     } else {
-      // Logged out — show auth screen
+      // Logged out — show auth screen, hide app
+      isAppInitialized = false;
       document.getElementById("authScreen").classList.remove("hidden");
       document.getElementById("app-shell").classList.add("hidden");
     }
-    // Hide loader after auth check
-    setTimeout(() => {
-      document.getElementById("loaderScreen").classList.add("hidden");
-    }, 800);
   });
 
   // Login button
