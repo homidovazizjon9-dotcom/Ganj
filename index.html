@@ -54,6 +54,10 @@
           <span class="logo-title">Гимназия</span>
           <span class="logo-sub">Ганч</span>
         </div>
+        <button class="theme-toggle" id="themeToggle" title="Сменить тему">
+          <span class="theme-icon theme-icon-sun">☀️</span>
+          <span class="theme-icon theme-icon-moon">🌙</span>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -96,10 +100,16 @@
         <div class="mob-logo-mark">ГГ</div>
         <div class="mob-logo-text">Гимназия Ганч</div>
       </div>
-      <button class="mob-profile-btn" id="mobProfileBtn">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="theme-toggle theme-toggle-mob" id="themeToggleMob" title="Сменить тему">
+          <span class="theme-icon theme-icon-sun">☀️</span>
+          <span class="theme-icon theme-icon-moon">🌙</span>
+        </button>
+        <button class="mob-profile-btn" id="mobProfileBtn">
         <img id="mobAvatar" src="" alt="" onerror="this.style.display='none'">
         <svg id="mobAvatarIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
       </button>
+      </div>
     </div>
     <div class="overlay" id="overlay"></div>
 
