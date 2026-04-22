@@ -80,7 +80,7 @@ body {
   height: 100%;
   background: linear-gradient(90deg, var(--gold), var(--gold2));
   border-radius: 99px;
-  animation: loadBar 1.8s ease forwards;
+  animation: loadBar 2.5s ease forwards;
 }
 @keyframes loadBar { 0% { width: 0% } 100% { width: 100% } }
 @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.7; transform: scale(0.96); } }
@@ -842,10 +842,15 @@ body {
 /* ---- AUTH SCREEN ---- */
 .auth-screen {
   position: fixed; inset: 0;
-  display: flex; align-items: center; justify-content: center;
+  display: none;
+  align-items: center; justify-content: center;
   background: var(--bg);
   z-index: 500;
   overflow: hidden;
+}
+/* JS removes .hidden to show auth screen */
+.auth-screen:not(.hidden) {
+  display: flex;
 }
 .auth-bg { position: absolute; inset: 0; pointer-events: none; }
 .auth-orb {
@@ -1048,4 +1053,3 @@ body {
   border-color: rgba(240,110,110,0.2);
   color: var(--red);
 }
-
