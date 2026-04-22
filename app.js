@@ -305,8 +305,8 @@ function setupUI() {
   });
 
   // Mobile sidebar
-  document.getElementById("mobileToggle").addEventListener("click", toggleSidebar);
-  document.getElementById("overlay").addEventListener("click", closeSidebar);
+  document.getElementById("mobileToggle")?.addEventListener("click", toggleSidebar);
+  document.getElementById("overlay")?.addEventListener("click", closeSidebar);
 
   // Filter selects
   document.getElementById("filterClass").innerHTML =
