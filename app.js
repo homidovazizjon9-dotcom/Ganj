@@ -30,7 +30,7 @@ const firebaseConfig = {
   storageBucket: "ganj-20dbb.firebasestorage.app",
   messagingSenderId: "859797495197",
   appId: "1:859797495197:web:87172b5aa745c30a556374",
-  databaseURL: "https://ganj-20dbb-default-rtdb.europe-west1.firebasedatabase.app/"
+  databaseURL: "https://ganj-20dbb-default-rtdb.firebaseio.com"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -168,14 +168,24 @@ function refreshAll() {
 }
 
 function renderUserInfo(user) {
+  // Desktop sidebar user info
   const el = document.getElementById("userInfo");
-  if (!el) return;
-  el.innerHTML = `
-    <img src="${user.photoURL || ''}" alt="" class="user-avatar" onerror="this.style.display='none'">
-    <div class="user-details">
-      <div class="user-name">${user.displayName || "Пользователь"}</div>
-      <div class="user-email">${user.email}</div>
-    </div>`;
+  if (el) {
+    el.innerHTML = `
+      <img src="${user.photoURL || ''}" alt="" class="user-avatar" onerror="this.style.display='none'">
+      <div class="user-details">
+        <div class="user-name">${user.displayName || "Пользователь"}</div>
+        <div class="user-email">${user.email}</div>
+      </div>`;
+  }
+  // Mobile header avatar
+  const mobAvatar = document.getElementById("mobAvatar");
+  const mobIcon = document.getElementById("mobAvatarIcon");
+  if (mobAvatar && user.photoURL) {
+    mobAvatar.src = user.photoURL;
+    mobAvatar.style.display = "block";
+    if (mobIcon) mobIcon.style.display = "none";
+  }
 }
 
 function showAuthError(msg) {
@@ -199,12 +209,16 @@ function setupUI() {
   document.getElementById("currentMonth").textContent =
     MONTHS_RU[currentMonth] + " " + currentYear;
 
-  // Nav items
+  // Desktop nav items
   document.querySelectorAll(".nav-item[data-page]").forEach(btn => {
     btn.addEventListener("click", () => {
       navigateTo(btn.dataset.page);
       closeSidebar();
     });
+  });
+  // Mobile bottom nav items
+  document.querySelectorAll(".mob-nav-item[data-page]").forEach(btn => {
+    btn.addEventListener("click", () => navigateTo(btn.dataset.page));
   });
   document.querySelectorAll(".text-btn[data-page]").forEach(btn => {
     btn.addEventListener("click", () => navigateTo(btn.dataset.page));
@@ -307,9 +321,16 @@ function navigateTo(page) {
   activePage = page;
   document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
   document.getElementById("page-" + page)?.classList.add("active");
+  // Desktop sidebar nav
   document.querySelectorAll(".nav-item").forEach(n => {
     n.classList.toggle("active", n.dataset.page === page);
   });
+  // Mobile bottom nav
+  document.querySelectorAll(".mob-nav-item").forEach(n => {
+    n.classList.toggle("active", n.dataset.page === page);
+  });
+  // Scroll to top on mobile
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function toggleSidebar() {
@@ -545,8 +566,12 @@ function getDebtorsList(month, year) {
 function updateDebtorsBadge() {
   const debtors = getDebtorsList(currentMonth, currentYear);
   const count = Object.values(debtors).reduce((s, arr) => s + arr.length, 0);
+  // Desktop sidebar badge
   const badge = document.getElementById("debtorsBadge");
-  badge.textContent = count > 0 ? count : "";
+  if (badge) badge.textContent = count > 0 ? count : "";
+  // Mobile bottom nav badge
+  const mobBadge = document.getElementById("mobDebtorsBadge");
+  if (mobBadge) mobBadge.textContent = count > 0 ? count : "";
 }
 
 // =============================================
