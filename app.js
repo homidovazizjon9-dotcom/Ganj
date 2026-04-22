@@ -123,12 +123,13 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("app-shell").classList.remove("hidden");
       renderUserInfo(user);
-      // Only setup UI and subscribe once
+      // Setup UI only once (DOM wiring)
       if (!isAppInitialized) {
         isAppInitialized = true;
         setupUI();
-        subscribeToData();
       }
+      // Always re-subscribe to get fresh realtime data
+      subscribeToData();
     } else {
       // Logged out — show auth screen, hide app
       isAppInitialized = false;
@@ -164,28 +165,39 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // ---- Subscribe to realtime data ----
+let _unsubs = [];
 function subscribeToData() {
-  onValue(ref(db, "students"), snap => {
+  _unsubs.forEach(fn => fn());
+  _unsubs = [];
+  const onErr = (err) => {
+    console.error("DB error:", err.code, err.message);
+    showToast("Ошибка чтения: " + err.code, true);
+  };
+  _unsubs.push(onValue(ref(db, "students"), snap => {
     students = snap.val() || {};
     refreshAll();
-  });
-  onValue(ref(db, "payments"), snap => {
+  }, onErr));
+  _unsubs.push(onValue(ref(db, "payments"), snap => {
     payments = snap.val() || {};
     refreshAll();
-  });
-  onValue(ref(db, "expenses"), snap => {
+  }, onErr));
+  _unsubs.push(onValue(ref(db, "expenses"), snap => {
     expenses = snap.val() || {};
     refreshAll();
-  });
+  }, onErr));
 }
 
 function refreshAll() {
-  renderDashboard();
-  renderClassContent(activeClass);
-  renderDebtors();
-  renderExpenses();
-  renderPaymentsTable();
-  updateDebtorsBadge();
+  try {
+    renderDashboard();
+    renderClassContent(activeClass);
+    renderDebtors();
+    renderExpenses();
+    renderPaymentsTable();
+    updateDebtorsBadge();
+  } catch(e) {
+    console.error("refreshAll error:", e);
+  }
 }
 
 function renderUserInfo(user) {
