@@ -205,9 +205,17 @@ function setupUI() {
   document.getElementById("pageDate").textContent =
     new Date().toLocaleDateString("ru-RU", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
-  // Current month footer
-  document.getElementById("currentMonth").textContent =
-    MONTHS_RU[currentMonth] + " " + currentYear;
+  // Current month footer + topbar
+  const monthLabel = MONTHS_RU[currentMonth] + " " + currentYear;
+  document.getElementById("currentMonth").textContent = monthLabel.toUpperCase();
+  const topbarMonth = document.getElementById("topbarMonth");
+  if (topbarMonth) topbarMonth.textContent = monthLabel;
+
+  // Greeting by time of day
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Доброе утро" : hour < 18 ? "Добрый день" : "Добрый вечер";
+  const topbarGreeting = document.getElementById("topbarGreeting");
+  if (topbarGreeting) topbarGreeting.textContent = greeting;
 
   // Desktop nav items
   document.querySelectorAll(".nav-item[data-page]").forEach(btn => {
