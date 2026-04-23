@@ -1591,9 +1591,7 @@ function handleCSVFile(e) {
   reader.onload = ev => {
     try {
       const text = ev.target.result.replace(/^﻿/, ""); // strip BOM
-      const lines = text.split(/
-?
-/).filter(l => l.trim());
+      const lines = text.split(/?/).filter(l => l.trim());
       // Skip header row if it looks like a header
       const start = lines[0]?.toLowerCase().includes("имя") || lines[0]?.toLowerCase().includes("name") ? 1 : 0;
       const parsed = []; const errors = [];
