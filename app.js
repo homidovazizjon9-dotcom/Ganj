@@ -765,7 +765,6 @@ function buildStudentCards(list) {
     '</div>';
   }).join("");
 
-    </div>`;
 }
 
 // =============================================
