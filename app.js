@@ -1055,8 +1055,11 @@ function renderExpensePieChart(byCategory) {
       datasets: [{ data, backgroundColor: COLORS.slice(0, data.length), borderWidth: 0, hoverOffset: 6 }]
     },
     options: {
-      responsive: true,
-      cutout: "62%",
+      responsive: false,
+      maintainAspectRatio: false,
+      width: 180,
+      height: 180,
+      cutout: "65%",
       plugins: {
         legend: { display: false },
         tooltip: {
