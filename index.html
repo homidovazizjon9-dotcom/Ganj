@@ -92,6 +92,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="23" y2="8"/><line x1="21" y1="6" x2="21" y2="10"/></svg>
           <span>Доступ</span>
         </button>
+        <button class="nav-item nav-trash" data-page="trash" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          <span>Корзина</span>
+          <span class="badge" id="trashBadge" style="display:none"></span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -367,6 +372,19 @@
         </div>
         <div class="users-list" id="usersList">
           <div class="empty-state">Загрузка...</div>
+        </div>
+      </div>
+
+      <!-- TRASH PAGE (superadmin only) -->
+      <div class="page" id="page-trash">
+        <div class="page-header">
+          <h1 class="page-title">🗑 Корзина</h1>
+        </div>
+        <div class="users-hint">
+          Здесь хранятся удалённые записи. Вы можете <strong>восстановить</strong> любую запись или удалить навсегда. Доступно только суперадмину.
+        </div>
+        <div class="trash-list" id="trashList">
+          <div class="empty-state">🎉 Корзина пуста</div>
         </div>
       </div>
 

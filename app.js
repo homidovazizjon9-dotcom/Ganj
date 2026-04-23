@@ -90,6 +90,7 @@ let payments = {};
 let expenses = {};
 let usersData = {};
 let auditLogData = [];
+let trashData = {};  // soft-deleted records
 let activeClass = "11а";
 let activePage = "dashboard";
 let editingStudentId = null;
@@ -303,6 +304,13 @@ function subscribeToData() {
         showToast(`Ваша роль изменена: ${ROLE_LABELS[newRole]}`);
       }
     }));
+  }
+  // Trash — only superadmin needs it
+  if (canManageUsers()) {
+    _unsubs.push(onValue(ref(db, 'trash'), snap => {
+      trashData = snap.val() || {};
+      renderTrashPage();
+    }, onErr));
   }
 }
 
@@ -866,6 +874,13 @@ function buildStudentCards(list) {
     const phone = s.phone
       ? '<div class="student-card-row"><span>Телефон</span><span>' + s.phone + '</span></div>'
       : '';
+    const actBtns = canEdit()
+      ? '<div class="student-card-actions">' +
+          '<button class="btn-secondary" onclick="quickPayment(&apos;' + s.id + '&apos;)">💳</button>' +
+          '<button class="btn-secondary" onclick="editStudent(&apos;' + s.id + '&apos;)">✏️</button>' +
+          '<button class="action-btn danger" onclick="deleteStudent(&apos;' + s.id + '&apos;)">🗑️</button>' +
+        '</div>'
+      : '';
     return '<div class="student-card">' +
       '<div class="student-card-top">' +
         '<div class="student-card-name">' + (s.name || "—") + '</div>' +
@@ -876,14 +891,9 @@ function buildStudentCards(list) {
       '<div class="student-card-row"><span>Оплачено</span><span style="color:var(--green)">' +
         (paid > 0 ? formatMoney(paid) : "—") + '</span></div>' +
       phone +
-      '<div class="student-card-actions">' +
-        '<button class="btn-secondary" onclick="quickPayment(&apos;' + s.id + '&apos;)">💳</button>' +
-        '<button class="btn-secondary" onclick="editStudent(&apos;' + s.id + '&apos;)">✏️</button>' +
-        '<button class="action-btn danger" onclick="deleteStudent(&apos;' + s.id + '&apos;)">🗑️</button>' +
-      '</div>' +
+      actBtns +
     '</div>';
   }).join("");
-
 }
 
 // =============================================
@@ -1221,11 +1231,12 @@ window.editStudent = function(id) {
 };
 
 window.deleteStudent = async function(id) {
-  if (!confirm("Удалить ученика? Все его платежи останутся.")) return;
+  if (!canEdit()) return;
+  if (!confirm("Удалить ученика? Запись попадёт в корзину, суперадмин сможет восстановить.")) return;
   const s = students[id];
-  await remove(ref(db, `students/${id}`));
+  await softDelete('students', id, s);
   logAction('student_delete', { name: s?.name, class: s?.class });
-  showToast("Ученик удалён");
+  showToast("Ученик перемещён в корзину");
 };
 
 // ---- Payments ----
@@ -1292,11 +1303,12 @@ async function savePayment() {
 }
 
 window.deletePayment = async function(id) {
-  if (!confirm("Удалить платёж?")) return;
+  if (!canEdit()) return;
+  if (!confirm("Удалить платёж? Запись попадёт в корзину.")) return;
   const p = payments[id];
-  await remove(ref(db, `payments/${id}`));
+  await softDelete('payments', id, p);
   logAction('payment_delete', { studentName: p?.studentName, amount: p?.amount });
-  showToast("Платёж удалён");
+  showToast("Платёж перемещён в корзину");
 };
 
 // ---- Expenses ----
@@ -1321,12 +1333,101 @@ async function saveExpense() {
 }
 
 window.deleteExpense = async function(id) {
-  if (!confirm("Удалить расход?")) return;
+  if (!canEdit()) return;
+  if (!confirm("Удалить расход? Запись попадёт в корзину.")) return;
   const e = expenses[id];
-  await remove(ref(db, `expenses/${id}`));
+  await softDelete('expenses', id, e);
   logAction('expense_delete', { description: e?.description, amount: e?.amount });
-  showToast("Расход удалён");
+  showToast("Расход перемещён в корзину");
 };
+
+// =============================================
+// SOFT DELETE & TRASH
+// =============================================
+async function softDelete(collection, id, data) {
+  const trashRecord = {
+    ...data,
+    _collection: collection,
+    _originalId: id,
+    _deletedAt: Date.now(),
+    _deletedBy: currentUserId,
+    _deletedByName: currentUserName
+  };
+  // Move to trash
+  await set(ref(db, `trash/${collection}/${id}`), trashRecord);
+  // Remove from original path
+  await remove(ref(db, `${collection}/${id}`));
+}
+
+window.restoreFromTrash = async function(collection, id) {
+  const item = trashData[collection]?.[id];
+  if (!item) return;
+  const { _collection, _originalId, _deletedAt, _deletedBy, _deletedByName, ...original } = item;
+  try {
+    await set(ref(db, `${collection}/${id}`), original);
+    await remove(ref(db, `trash/${collection}/${id}`));
+    logAction('restore', { collection, id, info: original.name || original.studentName || original.description });
+    showToast('Запись восстановлена ✓');
+  } catch(e) {
+    showToast('Ошибка: ' + e.message, true);
+  }
+};
+
+window.hardDeleteFromTrash = async function(collection, id) {
+  if (!confirm('Удалить навсегда? Это действие нельзя отменить.')) return;
+  await remove(ref(db, `trash/${collection}/${id}`));
+  showToast('Запись удалена навсегда');
+};
+
+function renderTrashPage() {
+  const el = document.getElementById('trashList');
+  if (!el) return;
+
+  const COLL_LABELS = { students: 'Ученики', payments: 'Платежи', expenses: 'Расходы' };
+  const COLL_ICONS  = { students: '👤', payments: '💳', expenses: '📄' };
+
+  let html = '';
+  let totalItems = 0;
+
+  ['students','payments','expenses'].forEach(col => {
+    const items = Object.entries(trashData[col] || {});
+    if (!items.length) return;
+    totalItems += items.length;
+
+    html += `<div class="trash-section">
+      <div class="trash-section-header">${COLL_ICONS[col]} ${COLL_LABELS[col]} <span class="trash-count">${items.length}</span></div>`;
+
+    items.sort((a,b) => (b[1]._deletedAt||0) - (a[1]._deletedAt||0)).forEach(([id, item]) => {
+      const label = item.name || item.studentName || item.description || '—';
+      const sub = item.class ? `(${item.class.toUpperCase()}) ` : '';
+      const amount = item.amount ? formatMoney(item.amount) : '';
+      const when = item._deletedAt
+        ? new Date(item._deletedAt).toLocaleString('ru-RU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+        : '';
+      html += `<div class="trash-item">
+        <div class="trash-item-info">
+          <div class="trash-item-name">${label} ${sub}${amount ? '<span class="trash-amount">−' + amount + '</span>' : ''}</div>
+          <div class="trash-item-meta">Удалил: ${item._deletedByName || '—'} · ${when}</div>
+        </div>
+        <div class="trash-item-actions">
+          <button class="btn-secondary" onclick="restoreFromTrash('${col}','${id}')">↑ Восстановить</button>
+          <button class="action-btn danger" onclick="hardDeleteFromTrash('${col}','${id}')" title="Удалить навсегда">🗑️</button>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+
+  if (!totalItems) {
+    html = '<div class="empty-state">🎉 Корзина пуста</div>';
+  }
+  el.innerHTML = html;
+
+  // Update badge on nav
+  const badge = document.getElementById('trashBadge');
+  if (badge) badge.textContent = totalItems || '';
+  if (badge) badge.style.display = totalItems ? '' : 'none';
+}
 
 // =============================================
 // HELPERS
