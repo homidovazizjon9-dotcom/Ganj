@@ -171,6 +171,9 @@
           </div>
         </div>
 
+        <!-- Yearly stats row -->
+        <div class="yearly-stats" id="yearlyStats"></div>
+
         <div class="dashboard-grid">
           <div class="card">
             <div class="card-header">
@@ -275,17 +278,20 @@
           <select id="filterYear"></select>
           <select id="filterStatus">
             <option value="">Все статусы</option>
+            <option value="paid">Оплачено</option>
+            <option value="partial">Частично</option>
+            <option value="unpaid">Не оплачено</option>
           </select>
         </div>
         <div class="payments-table-wrap">
           <table class="payments-table">
             <thead>
               <tr>
-                <th>Ученик</th>
+                <th class="sortable" onclick="setSortPayments('name')">Ученик</th>
                 <th>Класс</th>
-                <th>Сумма</th>
+                <th class="sortable" onclick="setSortPayments('amount')">Сумма</th>
                 <th>Месяц</th>
-                <th>Дата</th>
+                <th class="sortable" onclick="setSortPayments('createdAt')">Дата</th>
                 <th>Действия</th>
               </tr>
             </thead>
@@ -415,6 +421,42 @@
         <button class="btn-secondary" data-modal="modalExpense">Отмена</button>
         <button class="btn-primary" id="saveExpenseBtn">Сохранить</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Edit Payment Modal -->
+  <div class="modal" id="modalEditPayment">
+    <div class="modal-header">
+      <h3>Редактировать платёж</h3>
+      <button class="modal-close" data-modal="modalEditPayment">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label>Ученик</label>
+        <input type="text" id="editPaymentStudent" disabled style="opacity:.6;cursor:not-allowed">
+      </div>
+      <div class="form-group">
+        <label>Сумма (сомони)</label>
+        <input type="number" id="editPaymentAmount" placeholder="200">
+      </div>
+      <div class="form-group form-row">
+        <div>
+          <label>Месяц</label>
+          <select id="editPaymentMonth"></select>
+        </div>
+        <div>
+          <label>Год</label>
+          <select id="editPaymentYear"></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Примечание</label>
+        <input type="text" id="editPaymentNote" placeholder="Оплата за апрель">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-secondary" data-modal="modalEditPayment">Отмена</button>
+      <button class="btn-primary" id="saveEditPaymentBtn">Сохранить</button>
     </div>
   </div>
 
