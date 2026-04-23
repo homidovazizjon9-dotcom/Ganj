@@ -1632,7 +1632,7 @@ tr.selected td { background: var(--gold-dim) !important; }
    ============================================= */
 .student-card-list { display: none; }
 
-@media (max-width: 600px) {
+@media (max-width: 768) {
   /* Hide table, show cards */
   .students-table-wrap table { display: none; }
   .student-card-list { display: flex; flex-direction: column; gap: 10px; }
