@@ -1179,8 +1179,10 @@ function renderPaymentsTable() {
           <div class="payment-card-amount">+${formatMoney(p.amount)}</div>
           <div class="payment-card-date">${p.createdAt ? formatDate(new Date(p.createdAt).toISOString().split("T")[0]) : "—"}</div>
           <div class="payment-card-actions">
+            ${canEdit() ? `
             <button class="action-btn" onclick="openEditPayment('${p.id}')">✏️</button>
             <button class="action-btn danger" onclick="deletePayment('${p.id}')">🗑️</button>
+            ` : ''}
           </div>
         </div>
       </div>`;
@@ -1194,6 +1196,7 @@ function renderPaymentsTable() {
 
 // ---- Students ----
 async function saveStudent() {
+  if (!canEdit()) { showToast("У вас нет прав для этого действия", true); return; }
   const name = document.getElementById("studentName").value.trim();
   const cls = document.getElementById("studentClass").value;
   const fee = Number(document.getElementById("studentFee").value) || 200;
@@ -1276,6 +1279,7 @@ function populatePaymentStudentSelect(presetId = null) {
 }
 
 async function savePayment() {
+  if (!canEdit()) { showToast("У вас нет прав для этого действия", true); return; }
   const sel = document.getElementById("paymentStudent");
   const studentId = sel.value;
   const student = students[studentId];
@@ -1313,6 +1317,7 @@ window.deletePayment = async function(id) {
 
 // ---- Expenses ----
 async function saveExpense() {
+  if (!canEdit()) { showToast("У вас нет прав для этого действия", true); return; }
   const description = document.getElementById("expenseDesc").value.trim();
   const amount = Number(document.getElementById("expenseAmount").value);
   const category = document.getElementById("expenseCategory").value;
@@ -1515,6 +1520,7 @@ window.toggleSelectAll = function(checked) {
 };
 
 async function markSelectedAsPaid() {
+  if (!canEdit()) { showToast("У вас нет прав для этого действия", true); return; }
   if (selectedStudents.size === 0) { showToast("Выберите учеников", true); return; }
   const month = currentMonth;
   const year = currentYear;
@@ -1753,6 +1759,7 @@ window.openEditPayment = function(id) {
 };
 
 async function saveEditPayment() {
+  if (!canEdit()) { showToast("У вас нет прав для этого действия", true); return; }
   if (!editingPaymentId) return;
   const p = payments[editingPaymentId];
   const amount = Number(document.getElementById("editPaymentAmount").value);
