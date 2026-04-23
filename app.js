@@ -82,6 +82,8 @@ let paymentSortKey = "createdAt";
 let paymentSortDir = "desc";
 let studentSortKey = "name";
 let studentSortDir = "asc";
+let expensePieChart = null;
+let importedStudents = [];
 
 const now = new Date();
 let currentMonth = now.getMonth();
@@ -163,12 +165,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Logout button
+  // Logout button (desktop sidebar)
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     if (confirm("Выйти из системы?")) {
       await signOut(auth);
       showToast("Вы вышли из системы");
     }
+  });
+
+  // Mobile profile button — tap avatar to show logout menu
+  document.getElementById("mobProfileBtn")?.addEventListener("click", () => {
+    showMobileLogoutMenu();
   });
 });
 
@@ -181,6 +188,11 @@ function subscribeToData() {
     console.error("DB error:", err.code, err.message);
     showToast("Ошибка чтения: " + err.code, true);
   };
+  // Show skeletons while first load
+  renderSkeleton("classContent", 6);
+  renderSkeleton("recentPayments", 4);
+  renderSkeleton("debtorsGrid", 3);
+
   _unsubs.push(onValue(ref(db, "students"), snap => {
     students = snap.val() || {};
     refreshAll();
@@ -209,19 +221,32 @@ function refreshAll() {
 }
 
 function renderUserInfo(user) {
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const dateStr = now.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+
   // Desktop sidebar user info
   const el = document.getElementById("userInfo");
   if (el) {
+    const avatarHtml = user.photoURL
+      ? `<img src="${user.photoURL}" alt="" class="user-avatar" onerror="this.style.display='none'">`
+      : `<div class="user-avatar-placeholder">${(user.displayName||"?")[0].toUpperCase()}</div>`;
     el.innerHTML = `
-      <img src="${user.photoURL || ''}" alt="" class="user-avatar" onerror="this.style.display='none'">
-      <div class="user-details">
-        <div class="user-name">${user.displayName || "Пользователь"}</div>
-        <div class="user-email">${user.email}</div>
+      <div class="user-info-card">
+        <div class="user-avatar-wrap">
+          ${avatarHtml}
+          <div class="user-online-dot"></div>
+        </div>
+        <div class="user-details">
+          <div class="user-name">${user.displayName || "Пользователь"}</div>
+          <div class="user-email">${user.email}</div>
+          <div class="user-last-login">Вход: ${dateStr}, ${timeStr}</div>
+        </div>
       </div>`;
   }
   // Mobile header avatar
   const mobAvatar = document.getElementById("mobAvatar");
-  const mobIcon = document.getElementById("mobAvatarIcon");
+  const mobIcon   = document.getElementById("mobAvatarIcon");
   if (mobAvatar && user.photoURL) {
     mobAvatar.src = user.photoURL;
     mobAvatar.style.display = "block";
@@ -342,6 +367,16 @@ function setupUI() {
 
   // ── Export & utility buttons ──
   document.getElementById("exportClassCsvBtn")?.addEventListener("click", exportClassCSV);
+  document.getElementById("importCsvBtn")?.addEventListener("click", () => {
+    document.getElementById("csvFileInput").value = "";
+    document.getElementById("importPreview").classList.add("hidden");
+    document.getElementById("importError").classList.add("hidden");
+    document.getElementById("confirmImportBtn").classList.add("hidden");
+    openModal("modalImportCSV");
+  });
+  document.getElementById("csvFileInput")?.addEventListener("change", handleCSVFile);
+  document.getElementById("confirmImportBtn")?.addEventListener("click", confirmImport);
+  document.getElementById("downloadTemplateBtn")?.addEventListener("click", downloadImportTemplate);
   document.getElementById("exportPaymentsCsvBtn")?.addEventListener("click", exportPaymentsCSV);
   document.getElementById("exportPaymentsPdfBtn")?.addEventListener("click", exportPaymentsPDF);
   document.getElementById("exportDebtorsCsvBtn")?.addEventListener("click", exportDebtorsCSV);
@@ -689,7 +724,39 @@ function renderClassContent(cls) {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
-      </table>`}
+      </table>
+      <div class="student-card-list">
+        ${filtered.filter(s => {
+          if (!studentStatusFilter) return true;
+          const paid2 = getPaidAmount(s.id, currentMonth, currentYear);
+          const fee2  = Number(s.fee)||0;
+          const sk = paid2 >= fee2 ? "paid" : paid2 > 0 ? "partial" : "unpaid";
+          return sk === studentStatusFilter;
+        }).map(s => {
+          const paid = getPaidAmount(s.id, currentMonth, currentYear);
+          const fee  = Number(s.fee)||0;
+          const badge = paid >= fee
+            ? '<span class="status-badge status-paid">✓ Оплачено</span>'
+            : paid > 0
+              ? '<span class="status-badge status-partial">~ Частично</span>'
+              : '<span class="status-badge status-unpaid">✕ Не оплачено</span>';
+          return '<div class="student-card">' +
+            '<div class="student-card-top">' +
+              '<div class="student-card-name">' + (s.name||"—") + '</div>' +
+              '<div class="student-card-class">' + (s.class||"").toUpperCase() + '</div>' +
+            '</div>' +
+            badge +
+            '<div class="student-card-row"><span>Плата/мес</span><span>' + formatMoney(fee) + '</span></div>' +
+            '<div class="student-card-row"><span>Оплачено</span><span style="color:var(--green)">' + (paid > 0 ? formatMoney(paid) : "—") + '</span></div>' +
+            (s.phone ? '<div class="student-card-row"><span>Телефон</span><span>' + s.phone + '</span></div>' : "") +
+            '<div class="student-card-actions">' +
+              '<button class="btn-secondary" onclick="quickPayment(\'\' + s.id + '\')" >💳</button>' +
+              '<button class="btn-secondary" onclick="editStudent(\'\' + s.id + '\')" >✏️</button>' +
+              '<button class="action-btn danger" onclick="deleteStudent(\'\' + s.id + '\')" >🗑️</button>' +
+            '</div>' +
+          '</div>';
+        }).join("")}
+      </div>\`}
     </div>`;
 }
 
@@ -832,6 +899,59 @@ function renderExpenses() {
       <div class="expense-amount">−${formatMoney(e.amount)}</div>
       <button class="expense-delete" onclick="deleteExpense('${e.id}')" title="Удалить">✕</button>
     </div>`).join("");
+
+  renderExpensePieChart(byCategory);
+}
+
+function renderExpensePieChart(byCategory) {
+  const canvas = document.getElementById("expensePieChart");
+  if (!canvas) return;
+
+  const labels  = Object.keys(byCategory).map(capitalize);
+  const data    = Object.values(byCategory);
+  const total   = data.reduce((a, b) => a + b, 0);
+
+  const COLORS = ["#c9a84c","#3ecf8e","#6e9ef0","#f0a96e","#f06e6e","#b06ef0","#6ef0e8"];
+
+  // Destroy previous chart instance to avoid canvas reuse error
+  if (expensePieChart) { expensePieChart.destroy(); expensePieChart = null; }
+
+  if (!data.length) {
+    canvas.parentElement.innerHTML = '<div class="empty-state" style="padding:32px">Нет данных за этот месяц</div>';
+    document.getElementById("pieLegend").innerHTML = "";
+    return;
+  }
+
+  expensePieChart = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: COLORS.slice(0, data.length), borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true,
+      cutout: "62%",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.parsed.toLocaleString("ru-RU")} с (${Math.round(ctx.parsed/total*100)}%)`
+          }
+        }
+      }
+    }
+  });
+
+  // Custom legend
+  const legendEl = document.getElementById("pieLegend");
+  if (legendEl) {
+    legendEl.innerHTML = Object.entries(byCategory).map(([cat, amt], i) => `
+      <div class="pie-legend-item">
+        <div class="pie-legend-dot" style="background:${COLORS[i % COLORS.length]}"></div>
+        <div class="pie-legend-label">${capitalize(cat)}</div>
+        <div class="pie-legend-value">${formatMoney(amt)}</div>
+      </div>`).join("");
+  }
 }
 
 // =============================================
@@ -894,6 +1014,35 @@ function renderPaymentsTable() {
         <button class="action-btn danger" onclick="deletePayment('${p.id}')" title="Удалить">🗑️</button>
       </td>
     </tr>`).join("");
+
+  // Mobile card view — injected after table
+  const wrap = document.querySelector(".payments-table-wrap");
+  let cardList = wrap?.querySelector(".payment-card-list");
+  if (!cardList && wrap) {
+    cardList = document.createElement("div");
+    cardList.className = "payment-card-list";
+    wrap.appendChild(cardList);
+  }
+  if (cardList) {
+    cardList.innerHTML = paymentsArr.map(p => {
+      const initials = (p.studentName || "?").split(" ").map(n => n[0]).join("").slice(0,2).toUpperCase();
+      return `<div class="payment-card">
+        <div class="payment-card-avatar">${initials}</div>
+        <div class="payment-card-info">
+          <div class="payment-card-name">${p.studentName || "—"}</div>
+          <div class="payment-card-meta">${(p.studentClass||"").toUpperCase()} · ${MONTHS_RU[Number(p.month)||0]} ${p.year||""}</div>
+        </div>
+        <div class="payment-card-right">
+          <div class="payment-card-amount">+${formatMoney(p.amount)}</div>
+          <div class="payment-card-date">${p.createdAt ? formatDate(new Date(p.createdAt).toISOString().split("T")[0]) : "—"}</div>
+          <div class="payment-card-actions">
+            <button class="action-btn" onclick="openEditPayment('${p.id}')">✏️</button>
+            <button class="action-btn danger" onclick="deletePayment('${p.id}')">🗑️</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("");
+  }
 }
 
 // =============================================
@@ -1356,6 +1505,174 @@ async function saveEditPayment() {
   } catch(e) {
     showToast("Ошибка: " + e.message, true);
   }
+}
+
+
+
+// =============================================
+// MOBILE LOGOUT MENU (tap avatar)
+// =============================================
+function showMobileLogoutMenu() {
+  // Remove existing if any
+  document.getElementById("mobileLogoutMenu")?.remove();
+
+  const user = auth.currentUser;
+  const menu = document.createElement("div");
+  menu.id = "mobileLogoutMenu";
+  menu.className = "mobile-logout-menu";
+  menu.innerHTML = `
+    <div class="mob-menu-overlay"></div>
+    <div class="mob-menu-sheet">
+      <div class="mob-menu-handle"></div>
+      <div class="mob-menu-user">
+        ${user?.photoURL
+          ? `<img src="${user.photoURL}" class="mob-menu-avatar">`
+          : `<div class="mob-menu-avatar-placeholder">${(user?.displayName||"?")[0]}</div>`}
+        <div>
+          <div class="mob-menu-name">${user?.displayName || "Пользователь"}</div>
+          <div class="mob-menu-email">${user?.email || ""}</div>
+        </div>
+      </div>
+      <button class="mob-menu-logout-btn" id="mobLogoutConfirmBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Выйти из аккаунта
+      </button>
+      <button class="mob-menu-cancel-btn" id="mobMenuCancelBtn">Отмена</button>
+    </div>`;
+
+  document.body.appendChild(menu);
+  requestAnimationFrame(() => menu.querySelector(".mob-menu-sheet").classList.add("open"));
+
+  const close = () => {
+    menu.querySelector(".mob-menu-sheet").classList.remove("open");
+    setTimeout(() => menu.remove(), 300);
+  };
+
+  menu.querySelector(".mob-menu-overlay").addEventListener("click", close);
+  document.getElementById("mobMenuCancelBtn").addEventListener("click", close);
+  document.getElementById("mobLogoutConfirmBtn").addEventListener("click", async () => {
+    close();
+    await signOut(auth);
+    showToast("Вы вышли из системы");
+  });
+}
+
+// =============================================
+// CSV IMPORT
+// =============================================
+function downloadImportTemplate() {
+  const BOM = "﻿";
+  const csv = BOM + [
+    ["Имя","Класс","Телефон","Плата"],
+    ["Иванов Иван","11а","+992501234567","200"],
+    ["Петрова Мария","10б","+992901234567","200"],
+  ].map(r => r.map(v => `"${v}"`).join(",")).join("
+");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a"); a.href = url; a.download = "шаблон_ученики.csv"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function handleCSVFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const text = ev.target.result.replace(/^﻿/, ""); // strip BOM
+      const lines = text.split(/
+?
+/).filter(l => l.trim());
+      // Skip header row if it looks like a header
+      const start = lines[0]?.toLowerCase().includes("имя") || lines[0]?.toLowerCase().includes("name") ? 1 : 0;
+      const parsed = []; const errors = [];
+      lines.slice(start).forEach((line, i) => {
+        const cols = parseCSVLine(line);
+        const name = (cols[0] || "").trim();
+        const cls  = (cols[1] || "").trim().toLowerCase();
+        const phone= (cols[2] || "").trim();
+        const fee  = Number((cols[3] || "200").trim()) || 200;
+        if (!name) { errors.push(`Строка ${i+start+1}: пустое имя`); return; }
+        if (!CLASSES.includes(cls)) { errors.push(`Строка ${i+start+1}: неверный класс "${cols[1]}"`); return; }
+        parsed.push({ name, class: cls, phone, fee });
+      });
+      importedStudents = parsed;
+      const previewEl = document.getElementById("importPreview");
+      const titleEl   = document.getElementById("importPreviewTitle");
+      const listEl    = document.getElementById("importPreviewList");
+      const errorEl   = document.getElementById("importError");
+      const confirmBtn= document.getElementById("confirmImportBtn");
+      previewEl.classList.remove("hidden");
+      titleEl.textContent = `Найдено: ${parsed.length} учеников${errors.length ? `, ошибок: ${errors.length}` : ""}`;
+      listEl.innerHTML = [
+        ...parsed.map(s => `<div class="import-preview-row ok"><span class="import-row-num">✓</span><span>${s.name}</span><span style="color:var(--gold)">${s.class.toUpperCase()}</span><span style="color:var(--text3)">${s.fee} с</span></div>`),
+        ...errors.map(err => `<div class="import-preview-row error"><span class="import-row-num">✗</span><span>${err}</span></div>`)
+      ].join("");
+      if (errors.length && !parsed.length) {
+        errorEl.textContent = "Нет допустимых строк для импорта";
+        errorEl.classList.remove("hidden");
+        confirmBtn.classList.add("hidden");
+      } else {
+        errorEl.classList.add("hidden");
+        confirmBtn.classList.remove("hidden");
+        confirmBtn.textContent = `Импортировать ${parsed.length} учеников`;
+      }
+    } catch(err) {
+      showToast("Ошибка чтения файла: " + err.message, true);
+    }
+  };
+  reader.readAsText(file, "UTF-8");
+}
+
+function parseCSVLine(line) {
+  const result = []; let cur = ""; let inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; continue; }
+    if (ch === ',' && !inQ) { result.push(cur); cur = ""; continue; }
+    cur += ch;
+  }
+  result.push(cur);
+  return result;
+}
+
+async function confirmImport() {
+  if (!importedStudents.length) return;
+  const btn = document.getElementById("confirmImportBtn");
+  btn.disabled = true; btn.textContent = "Импорт...";
+  let done = 0;
+  for (const s of importedStudents) {
+    try {
+      await push(ref(db, "students"), { ...s, createdAt: Date.now() });
+      done++;
+    } catch(e) { console.error("Import error:", e); }
+  }
+  showToast(`Импортировано ${done} из ${importedStudents.length} учеников`);
+  importedStudents = [];
+  closeModal("modalImportCSV");
+  btn.disabled = false;
+}
+
+// =============================================
+// SKELETON LOADERS
+// =============================================
+function renderSkeleton(containerId, rows = 5) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = Array.from({ length: rows }, () => `
+    <div class="skeleton-row">
+      <div class="skeleton skeleton-avatar"></div>
+      <div class="skeleton-col">
+        <div class="skeleton skeleton-line w60"></div>
+        <div class="skeleton skeleton-line w40"></div>
+      </div>
+      <div class="skeleton skeleton-line w15" style="margin-left:auto"></div>
+    </div>`).join("");
 }
 
 // =============================================
