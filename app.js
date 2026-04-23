@@ -78,6 +78,10 @@ let selectMode = false;
 let selectedStudents = new Set();
 let studentSearchQuery = "";
 let studentStatusFilter = "";
+let paymentSortKey = "createdAt";
+let paymentSortDir = "desc";
+let studentSortKey = "name";
+let studentSortDir = "asc";
 
 const now = new Date();
 let currentMonth = now.getMonth();
@@ -360,6 +364,23 @@ function setupUI() {
 
   // ── Search in payments ──
   document.getElementById("searchStudent")?.addEventListener("input", renderPaymentsTable);
+
+  // ── Edit payment ──
+  document.getElementById("saveEditPaymentBtn")?.addEventListener("click", saveEditPayment);
+
+  // ── Populate edit modal month/year selects ──
+  const editMonthSel = document.getElementById("editPaymentMonth");
+  const editYearSel  = document.getElementById("editPaymentYear");
+  if (editMonthSel) {
+    editMonthSel.innerHTML = MONTHS_RU.map((m, i) =>
+      `<option value="${i}" ${i === currentMonth ? "selected" : ""}>${m}</option>`).join("");
+  }
+  if (editYearSel) {
+    const years = [];
+    for (let y = 2023; y <= currentYear + 1; y++) years.push(y);
+    editYearSel.innerHTML = years.map(y =>
+      `<option value="${y}" ${y === currentYear ? "selected" : ""}>${y}</option>`).join("");
+  }
 }
 
 function populateMonthSelects() {
@@ -444,6 +465,58 @@ function renderDashboard() {
 
   renderClassChart();
   renderRecentPayments();
+  renderYearlyStats();
+}
+
+function renderYearlyStats() {
+  // Total collected this year
+  let yearTotal = 0, yearExpenses = 0;
+  const monthlyData = new Array(12).fill(0);
+
+  Object.values(payments).forEach(p => {
+    if (Number(p.year) === currentYear) {
+      yearTotal += Number(p.amount) || 0;
+      monthlyData[Number(p.month)] += Number(p.amount) || 0;
+    }
+  });
+  Object.values(expenses).forEach(e => {
+    const d = new Date(e.date);
+    if (d.getFullYear() === currentYear) yearExpenses += Number(e.amount) || 0;
+  });
+
+  const bestMonth = monthlyData.indexOf(Math.max(...monthlyData));
+  const avgMonth  = Math.round(monthlyData.filter(v => v > 0).reduce((a, b) => a + b, 0) /
+                   Math.max(monthlyData.filter(v => v > 0).length, 1));
+  const balance   = yearTotal - yearExpenses;
+
+  const el = document.getElementById("yearlyStats");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="year-pill">
+      <div class="year-pill-label">Собрано за ${currentYear}</div>
+      <div class="year-pill-value" style="color:var(--green)">${formatMoney(yearTotal)}</div>
+      <div class="year-pill-sub">${Object.values(payments).filter(p => Number(p.year) === currentYear).length} платежей</div>
+    </div>
+    <div class="year-pill">
+      <div class="year-pill-label">Расходы за ${currentYear}</div>
+      <div class="year-pill-value" style="color:var(--orange)">${formatMoney(yearExpenses)}</div>
+      <div class="year-pill-sub">За ${Object.values(expenses).filter(e => new Date(e.date).getFullYear() === currentYear).length} записей</div>
+    </div>
+    <div class="year-pill">
+      <div class="year-pill-label">Баланс за ${currentYear}</div>
+      <div class="year-pill-value" style="color:${balance >= 0 ? 'var(--green)' : 'var(--red)'}">${formatMoney(balance)}</div>
+      <div class="year-pill-sub">${balance >= 0 ? 'Профицит' : 'Дефицит'}</div>
+    </div>
+    <div class="year-pill">
+      <div class="year-pill-label">Лучший месяц</div>
+      <div class="year-pill-value">${MONTHS_RU[bestMonth] || '—'}</div>
+      <div class="year-pill-sub">${formatMoney(monthlyData[bestMonth])}</div>
+    </div>
+    <div class="year-pill">
+      <div class="year-pill-label">Среднее в месяц</div>
+      <div class="year-pill-value">${formatMoney(avgMonth)}</div>
+      <div class="year-pill-sub">за активные месяцы</div>
+    </div>`;
 }
 
 function renderClassChart() {
@@ -512,10 +585,18 @@ function renderRecentPayments() {
 // CLASSES
 // =============================================
 function renderClassContent(cls) {
-  const classStudents = Object.entries(students)
+  let classStudents = Object.entries(students)
     .filter(([, s]) => s.class === cls)
-    .map(([id, s]) => ({ id, ...s }))
-    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ru"));
+    .map(([id, s]) => ({ id, ...s }));
+
+  // Sort
+  classStudents.sort((a, b) => {
+    let va, vb;
+    if (studentSortKey === "name") { va = a.name || ""; vb = b.name || ""; return studentSortDir === "asc" ? va.localeCompare(vb, "ru") : vb.localeCompare(va, "ru"); }
+    if (studentSortKey === "fee")  { va = Number(a.fee)||0; vb = Number(b.fee)||0; }
+    if (studentSortKey === "paid") { va = getPaidAmount(a.id, currentMonth, currentYear); vb = getPaidAmount(b.id, currentMonth, currentYear); }
+    return studentSortDir === "asc" ? va - vb : vb - va;
+  });
 
   const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
   let paidCount = 0;
@@ -572,12 +653,26 @@ function renderClassContent(cls) {
   const total = classStudents.length;
   const unpaid = total - paidCount;
 
+  const avgPayment = paidCount > 0 ? Math.round(totalCollected / paidCount) : 0;
+  const paidPct = total > 0 ? Math.round((paidCount / total) * 100) : 0;
+  const progressClass = paidPct >= 80 ? "" : paidPct >= 50 ? "warn" : "danger";
+
   document.getElementById("classContent").innerHTML = `
     <div class="class-stats-row">
       <div class="class-stat-pill">Учеников: <span>${total}</span></div>
       <div class="class-stat-pill">Оплатили: <span>${paidCount}</span></div>
-      <div class="class-stat-pill" style="--text:var(--red)">Должников: <span style="color:var(--red)">${unpaid}</span></div>
+      <div class="class-stat-pill">Должников: <span style="color:var(--red)">${unpaid}</span></div>
       <div class="class-stat-pill">Собрано: <span style="color:var(--green)">${formatMoney(totalCollected)}</span></div>
+      <div class="class-stat-pill">Сред. платёж: <span>${formatMoney(avgPayment)}</span></div>
+    </div>
+    <div class="class-progress-wrap">
+      <div class="class-progress-header">
+        <span>Оплатили в ${MONTHS_RU[currentMonth]}</span>
+        <span class="class-progress-pct">${paidPct}% (${paidCount} из ${total})</span>
+      </div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill ${progressClass}" style="width:${paidPct}%"></div>
+      </div>
     </div>
     <div class="students-table-wrap">
       ${total === 0 ? '<div class="empty-state">Нет учеников в этом классе. Добавьте первого!</div>' : `
@@ -585,9 +680,12 @@ function renderClassContent(cls) {
         <thead>
           <tr>
             ${selectMode ? '<th><input type="checkbox" class="row-checkbox" onchange="toggleSelectAll(this.checked)"></th>' : ""}
-            <th>Имя</th><th>Телефон</th><th>Плата/мес</th>
-            <th>${MONTHS_RU[currentMonth]} ${currentYear}</th>
-            <th>Статус</th><th>${selectMode ? "" : "Действия"}</th>
+            <th class="sortable ${studentSortKey==='name'?studentSortDir:''}" onclick="setSortStudents('name')">Имя</th>
+            <th>Телефон</th>
+            <th class="sortable ${studentSortKey==='fee'?studentSortDir:''}" onclick="setSortStudents('fee')">Плата/мес</th>
+            <th class="sortable ${studentSortKey==='paid'?studentSortDir:''}" onclick="setSortStudents('paid')">${MONTHS_RU[currentMonth]} ${currentYear}</th>
+            <th>Статус</th>
+            <th>${selectMode ? "" : "Действия"}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -614,14 +712,20 @@ function renderDebtors() {
   }
 
   let totalDebtors = 0;
+  let grandTotalDebt = 0;
   const cards = activeClasses.map(cls => {
     const list = debtors[cls] || [];
     totalDebtors += list.length;
+    list.forEach(d => grandTotalDebt += d.debt);
+
     const items = list.length === 0
       ? '<div class="no-debtors">✓ Все оплатили</div>'
       : list.map(d => `
         <div class="debtor-item">
-          <span class="debtor-name">${d.name}</span>
+          <span class="debtor-name">
+            ${d.name}
+            ${d.streak >= 2 ? `<span class="debtor-escalated">🔴 ${d.streak} мес.</span>` : ""}
+          </span>
           <span class="debtor-amount">-${formatMoney(d.debt)}</span>
         </div>`).join("");
 
@@ -634,7 +738,11 @@ function renderDebtors() {
     </div>`;
   }).join("");
 
-  document.getElementById("debtorsGrid").innerHTML = cards;
+  document.getElementById("debtorsGrid").innerHTML =
+    (grandTotalDebt > 0 ? `<div class="debtors-total-bar" style="grid-column:1/-1">
+      <div><div class="debtors-total-label">Общий долг по школе</div></div>
+      <div class="debtors-total-value">−${formatMoney(grandTotalDebt)}</div>
+    </div>` : "") + cards;
   updateDebtorsBadge();
 }
 
@@ -646,8 +754,16 @@ function getDebtorsList(month, year) {
     const paid = getPaidAmount(id, month, year);
     const fee = Number(s.fee) || 0;
     if (paid < fee) {
+      // Check escalation: how many consecutive months unpaid?
+      let streak = 0;
+      let m = month, y = year;
+      for (let i = 0; i < 6; i++) {
+        if (getPaidAmount(id, m, y) < fee) streak++;
+        else break;
+        m--; if (m < 0) { m = 11; y--; }
+      }
       result[s.class] = result[s.class] || [];
-      result[s.class].push({ name: s.name, debt: fee - paid });
+      result[s.class].push({ name: s.name, debt: fee - paid, streak });
     }
   });
   return result;
@@ -737,7 +853,28 @@ function renderPaymentsTable() {
   if (filterYear) paymentsArr = paymentsArr.filter(p => String(p.year) === String(filterYear));
   if (searchVal) paymentsArr = paymentsArr.filter(p => (p.studentName || "").toLowerCase().includes(searchVal));
 
-  paymentsArr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // Status filter (п.2 — was wired in HTML but not JS)
+  const filterStatus = document.getElementById("filterStatus")?.value || "";
+  if (filterStatus) {
+    paymentsArr = paymentsArr.filter(p => {
+      const s = students[p.studentId];
+      const fee = Number(s?.fee) || Number(p.amount) || 0;
+      const paid = getPaidAmount(p.studentId, Number(p.month), Number(p.year));
+      if (filterStatus === "paid")    return paid >= fee;
+      if (filterStatus === "unpaid")  return paid === 0;
+      if (filterStatus === "partial") return paid > 0 && paid < fee;
+      return true;
+    });
+  }
+
+  // Sort
+  paymentsArr.sort((a, b) => {
+    let va, vb;
+    if (paymentSortKey === "name")   { va = a.studentName||""; vb = b.studentName||""; return paymentSortDir==="asc" ? va.localeCompare(vb,"ru") : vb.localeCompare(va,"ru"); }
+    if (paymentSortKey === "amount") { va = Number(a.amount)||0; vb = Number(b.amount)||0; }
+    else /* date/createdAt */        { va = a.createdAt||0; vb = b.createdAt||0; }
+    return paymentSortDir === "asc" ? va - vb : vb - va;
+  });
 
   const tbody = document.getElementById("paymentsTableBody");
   if (!paymentsArr.length) {
@@ -753,6 +890,7 @@ function renderPaymentsTable() {
       <td>${MONTHS_RU[Number(p.month) || 0]} ${p.year || ""}</td>
       <td>${p.createdAt ? formatDate(new Date(p.createdAt).toISOString().split("T")[0]) : "—"}</td>
       <td>
+        <button class="action-btn" onclick="openEditPayment('${p.id}')" title="Редактировать">✏️</button>
         <button class="action-btn danger" onclick="deletePayment('${p.id}')" title="Удалить">🗑️</button>
       </td>
     </tr>`).join("");
@@ -1162,6 +1300,62 @@ function exportPaymentsPDF() {
   const win = window.open("", "_blank");
   if (win) { win.document.write(html); win.document.close(); }
   else showToast("Разрешите всплывающие окна для экспорта PDF", true);
+}
+
+// =============================================
+// SORT HELPERS
+// =============================================
+window.setSortStudents = function(key) {
+  if (studentSortKey === key) studentSortDir = studentSortDir === "asc" ? "desc" : "asc";
+  else { studentSortKey = key; studentSortDir = "asc"; }
+  renderClassContent(activeClass);
+};
+
+window.setSortPayments = function(key) {
+  if (paymentSortKey === key) paymentSortDir = paymentSortDir === "asc" ? "desc" : "asc";
+  else { paymentSortKey = key; paymentSortDir = "desc"; }
+  renderPaymentsTable();
+};
+
+// =============================================
+// EDIT PAYMENT
+// =============================================
+let editingPaymentId = null;
+
+window.openEditPayment = function(id) {
+  const p = payments[id];
+  if (!p) return;
+  editingPaymentId = id;
+  document.getElementById("editPaymentStudent").value = p.studentName || "—";
+  document.getElementById("editPaymentAmount").value  = p.amount || "";
+  document.getElementById("editPaymentMonth").value   = p.month ?? currentMonth;
+  document.getElementById("editPaymentYear").value    = p.year  ?? currentYear;
+  document.getElementById("editPaymentNote").value    = p.note  || "";
+  openModal("modalEditPayment");
+};
+
+async function saveEditPayment() {
+  if (!editingPaymentId) return;
+  const p = payments[editingPaymentId];
+  const amount = Number(document.getElementById("editPaymentAmount").value);
+  const month  = parseInt(document.getElementById("editPaymentMonth").value);
+  const year   = parseInt(document.getElementById("editPaymentYear").value);
+  const note   = document.getElementById("editPaymentNote").value.trim();
+
+  if (!amount || amount <= 0) { showToast("Введите сумму", true); return; }
+
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  try {
+    await set(ref(db, `payments/${editingPaymentId}`), {
+      ...p, amount, month, year, monthKey, note,
+      updatedAt: Date.now()
+    });
+    showToast("Платёж обновлён");
+    closeModal("modalEditPayment");
+    editingPaymentId = null;
+  } catch(e) {
+    showToast("Ошибка: " + e.message, true);
+  }
 }
 
 // =============================================
