@@ -723,40 +723,48 @@ function renderClassContent(cls) {
             <th>${selectMode ? "" : "Действия"}</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+<tbody>${rows}</tbody>
       </table>
-      <div class="student-card-list">
-        ${filtered.filter(s => {
-          if (!studentStatusFilter) return true;
-          const paid2 = getPaidAmount(s.id, currentMonth, currentYear);
-          const fee2  = Number(s.fee)||0;
-          const sk = paid2 >= fee2 ? "paid" : paid2 > 0 ? "partial" : "unpaid";
-          return sk === studentStatusFilter;
-        }).map(s => {
-          const paid = getPaidAmount(s.id, currentMonth, currentYear);
-          const fee  = Number(s.fee)||0;
-          const badge = paid >= fee
-            ? '<span class="status-badge status-paid">✓ Оплачено</span>'
-            : paid > 0
-              ? '<span class="status-badge status-partial">~ Частично</span>'
-              : '<span class="status-badge status-unpaid">✕ Не оплачено</span>';
-          return '<div class="student-card">' +
-            '<div class="student-card-top">' +
-              '<div class="student-card-name">' + (s.name||"—") + '</div>' +
-              '<div class="student-card-class">' + (s.class||"").toUpperCase() + '</div>' +
-            '</div>' +
-            badge +
-            '<div class="student-card-row"><span>Плата/мес</span><span>' + formatMoney(fee) + '</span></div>' +
-            '<div class="student-card-row"><span>Оплачено</span><span style="color:var(--green)">' + (paid > 0 ? formatMoney(paid) : "—") + '</span></div>' +
-            (s.phone ? '<div class="student-card-row"><span>Телефон</span><span>' + s.phone + '</span></div>' : "") +
-            '<div class="student-card-actions">' +
-              '<button class="btn-secondary" onclick="quickPayment(\'\' + s.id + '\')" >💳</button>' +
-              '<button class="btn-secondary" onclick="editStudent(\'\' + s.id + '\')" >✏️</button>' +
-              '<button class="action-btn danger" onclick="deleteStudent(\'\' + s.id + '\')" >🗑️</button>' +
-            '</div>' +
-          '</div>';
-        }).join("")}
-      </div>\`}
+      <div class="student-card-list">${buildStudentCards(filtered)}</div>`}
+    </div>`;
+}
+
+function buildStudentCards(list) {
+  return list.filter(s => {
+    if (!studentStatusFilter) return true;
+    const p = getPaidAmount(s.id, currentMonth, currentYear);
+    const f = Number(s.fee) || 0;
+    const sk = p >= f ? "paid" : p > 0 ? "partial" : "unpaid";
+    return sk === studentStatusFilter;
+  }).map(s => {
+    const paid = getPaidAmount(s.id, currentMonth, currentYear);
+    const fee  = Number(s.fee) || 0;
+    const badge = paid >= fee
+      ? '<span class="status-badge status-paid">✓ Оплачено</span>'
+      : paid > 0
+        ? '<span class="status-badge status-partial">~ Частично</span>'
+        : '<span class="status-badge status-unpaid">✕ Не оплачено</span>';
+    const phone = s.phone
+      ? '<div class="student-card-row"><span>Телефон</span><span>' + s.phone + '</span></div>'
+      : '';
+    return '<div class="student-card">' +
+      '<div class="student-card-top">' +
+        '<div class="student-card-name">' + (s.name || "—") + '</div>' +
+        '<div class="student-card-class">' + (s.class || "").toUpperCase() + '</div>' +
+      '</div>' +
+      badge +
+      '<div class="student-card-row"><span>Плата/мес</span><span>' + formatMoney(fee) + '</span></div>' +
+      '<div class="student-card-row"><span>Оплачено</span><span style="color:var(--green)">' +
+        (paid > 0 ? formatMoney(paid) : "—") + '</span></div>' +
+      phone +
+      '<div class="student-card-actions">' +
+        '<button class="btn-secondary" onclick="quickPayment(&apos;' + s.id + '&apos;)">💳</button>' +
+        '<button class="btn-secondary" onclick="editStudent(&apos;' + s.id + '&apos;)">✏️</button>' +
+        '<button class="action-btn danger" onclick="deleteStudent(&apos;' + s.id + '&apos;)">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
     </div>`;
 }
 
