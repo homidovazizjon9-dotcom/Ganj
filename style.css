@@ -1225,6 +1225,12 @@ body {
   .search-input { min-width: 100%; }
   .class-search-bar { flex-direction: column; }
 
+
+  /* Yearly stats scroll */
+  .yearly-stats { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 4px; }
+  .yearly-stats::-webkit-scrollbar { display: none; }
+  .year-pill { flex-shrink: 0; min-width: 140px; }
+
   /* Expenses summary scroll */
   .expenses-summary {
     flex-wrap: nowrap;
@@ -1358,6 +1364,129 @@ body {
 }
 tr.selected td { background: var(--gold-dim) !important; }
 
+
+
+/* =============================================
+   YEARLY STATS ROW
+   ============================================= */
+.yearly-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.year-pill {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 160px;
+  transition: border-color var(--ease);
+}
+.year-pill:hover { border-color: var(--border2); }
+.year-pill-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.year-pill-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -.02em;
+}
+.year-pill-sub {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* =============================================
+   PROGRESS BAR (class payment progress)
+   ============================================= */
+.class-progress-wrap {
+  margin-bottom: 18px;
+}
+.class-progress-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--text2);
+}
+.class-progress-pct {
+  font-weight: 700;
+  color: var(--text);
+}
+.progress-bar-track {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--green), #5df0b2);
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+}
+.progress-bar-fill.warn  { background: linear-gradient(90deg, var(--orange), #f5c97a); }
+.progress-bar-fill.danger { background: linear-gradient(90deg, var(--red), #f59e9e); }
+
+/* =============================================
+   SORTABLE TABLE HEADERS
+   ============================================= */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.sortable:hover { color: var(--gold); }
+.sortable::after {
+  content: ' ↕';
+  opacity: .35;
+  font-size: .85em;
+}
+.sortable.asc::after  { content: ' ↑'; opacity: 1; color: var(--gold); }
+.sortable.desc::after { content: ' ↓'; opacity: 1; color: var(--gold); }
+
+/* =============================================
+   ESCALATION BADGE (2+ months debt)
+   ============================================= */
+.debtor-escalated {
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--red-dim);
+  color: var(--red);
+  border: 1px solid rgba(240,110,110,.3);
+  padding: 2px 7px;
+  border-radius: 99px;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* debtors total bar */
+.debtors-total-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--red-dim);
+  border: 1px solid rgba(240,110,110,.2);
+  border-radius: 12px;
+  padding: 14px 20px;
+  margin-bottom: 20px;
+}
+.debtors-total-label { font-size: 13px; color: var(--text2); }
+.debtors-total-value { font-size: 22px; font-weight: 800; color: var(--red); letter-spacing:-.02em; }
+
+/* =============================================
+   MOBILE: yearly stats + progress bar
+   ============================================= */
 
 /* ---- SCROLLBAR ---- */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
