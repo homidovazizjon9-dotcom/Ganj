@@ -293,7 +293,7 @@ function subscribeToData() {
         currentUserRole = newRole;
         renderUserInfo(auth.currentUser);
         // Update nav visibility
-        document.querySelectorAll('.nav-users').forEach(el =>
+        document.querySelectorAll('.nav-users, .nav-trash').forEach(el =>
           el.style.display = canManageUsers() ? '' : 'none');
         // Hide/show action buttons
         ['addStudentBtn','selectModeBtn','importCsvBtn','addPaymentBtn','addExpenseBtn'].forEach(id => {
@@ -513,7 +513,7 @@ function setupUI() {
   // ── История visible to ALL roles ──
   document.querySelectorAll('.nav-history, .mob-nav-history').forEach(el => el.style.display = '');
   if (canManageUsers()) {
-    document.querySelectorAll('.nav-users').forEach(el => el.style.display = '');
+    document.querySelectorAll('.nav-users, .nav-trash').forEach(el => el.style.display = '');
   }
   // Hide edit buttons for read-only roles
   if (!canEdit()) {
