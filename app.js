@@ -1577,8 +1577,7 @@ function downloadImportTemplate() {
     ["Имя","Класс","Телефон","Плата"],
     ["Иванов Иван","11а","+992501234567","200"],
     ["Петрова Мария","10б","+992901234567","200"],
-  ].map(r => r.map(v => `"${v}"`).join(",")).join("
-");
+  ].map(r => r.map(v => `"${v}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = "шаблон_ученики.csv"; a.click();
