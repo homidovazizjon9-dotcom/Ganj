@@ -22,12 +22,15 @@
   --orange-dim: rgba(240,169,110,0.15);
   --blue: #6e9ef0;
   --blue-dim: rgba(110,158,240,0.15);
+  --purple: #b06ef0;
+  --purple-dim: rgba(176,110,240,0.15);
   --text: #e8eaf0;
   --text2: #9499b0;
   --text3: #5a5f78;
   --sidebar-w: 260px;
   --radius: 16px;
   --transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --ease: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* =============================================
@@ -287,6 +290,7 @@ body {
   min-height: 100vh;
   padding: 36px 40px;
   position: relative;
+  max-width: calc(1440px + var(--sidebar-w));
 }
 
 
@@ -1632,7 +1636,7 @@ tr.selected td { background: var(--gold-dim) !important; }
    ============================================= */
 .student-card-list { display: none; }
 
-@media (max-width: 768) {
+@media (max-width: 768px) {
   /* Hide table, show cards */
   .students-table-wrap table { display: none; }
   .student-card-list { display: flex; flex-direction: column; gap: 10px; }
@@ -1698,7 +1702,7 @@ tr.selected td { background: var(--gold-dim) !important; }
 }
 
 /* =============================================
-   AUTH — UPGRADED USER DISPLAY
+   AUTH — USER DISPLAY
    ============================================= */
 .user-info {
   padding: 12px 0 8px;
@@ -1740,6 +1744,24 @@ tr.selected td { background: var(--gold-dim) !important; }
 .user-name { font-size: 13px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-email { font-size: 10px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .user-last-login { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+/* Role badge */
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
+}
+.role-superadmin { background: var(--gold-dim); color: var(--gold); }
+.role-director   { background: var(--blue-dim); color: var(--blue); }
+.role-accountant { background: var(--green-dim); color: var(--green); }
+.role-cashier    { background: var(--orange-dim); color: var(--orange); }
+.role-observer   { background: var(--surface2); color: var(--text3); }
 
 
 /* =============================================
@@ -1999,37 +2021,115 @@ tr.selected td { background: var(--gold-dim) !important; }
 }
 .auth-note::before { content: "🔒"; }
 
-/* ---- USER INFO IN SIDEBAR ---- */
-.user-info {
+/* ---- HISTORY PAGE ---- */
+.history-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.history-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  transition: border-color var(--transition);
+  animation: cardIn 0.3s ease backwards;
+}
+.history-item:hover { border-color: var(--border2); }
+.history-icon {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.history-icon.add    { background: var(--green-dim); }
+.history-icon.edit   { background: var(--blue-dim); }
+.history-icon.delete { background: var(--red-dim); }
+.history-icon.batch  { background: var(--gold-dim); }
+.history-body { flex: 1; min-width: 0; }
+.history-action { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.history-detail { font-size: 12px; color: var(--text2); }
+.history-meta { text-align: right; flex-shrink: 0; }
+.history-who {
+  font-size: 11px; font-weight: 700;
+  color: var(--text2);
+  margin-bottom: 3px;
+}
+.history-when { font-size: 10px; color: var(--text3); }
+.history-role-badge {
+  display: inline-block;
+  font-size: 9px; font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+/* ---- USERS PAGE ---- */
+.users-hint {
+  background: var(--blue-dim);
+  border: 1px solid rgba(110,158,240,0.2);
+  color: var(--blue);
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  margin-bottom: 20px;
+}
+.users-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.user-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border);
-  margin-top: 8px;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  transition: border-color var(--transition);
 }
-.user-avatar {
-  width: 34px; height: 34px;
+.user-row:hover { border-color: var(--border2); }
+.user-row-avatar {
+  width: 44px; height: 44px;
   border-radius: 50%;
   object-fit: cover;
   border: 2px solid var(--gold-dim);
+  background: var(--gold-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px; font-weight: 700; color: var(--gold);
   flex-shrink: 0;
 }
-.user-details { flex: 1; min-width: 0; }
-.user-name {
-  font-size: 12px;
-  font-weight: 600;
+.user-row-info { flex: 1; min-width: 0; }
+.user-row-name { font-size: 14px; font-weight: 700; color: var(--text); }
+.user-row-email { font-size: 11px; color: var(--text3); margin-top: 1px; }
+.user-row-meta { font-size: 10px; color: var(--text3); margin-top: 2px; }
+.user-row-role select {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-family: 'Manrope', sans-serif;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
 }
-.user-email {
-  font-size: 10px;
-  color: var(--text3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.user-row-role select:focus { border-color: var(--gold); }
+.user-row-self { opacity: 0.6; }
+.user-row-self select { cursor: not-allowed; }
+@media (max-width: 768px) {
+  .user-row { flex-wrap: wrap; gap: 10px; }
+  .user-row-role { width: 100%; }
+  .user-row-role select { width: 100%; }
+  .history-item { flex-wrap: wrap; }
+  .history-meta { text-align: left; width: 100%; }
 }
 
 /* ---- LOGOUT BUTTON ---- */

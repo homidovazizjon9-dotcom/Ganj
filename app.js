@@ -67,10 +67,29 @@ const CAT_ICONS = {
   "прочее": "📦"
 };
 
+// ---- Roles ----
+const SUPERADMIN_EMAIL = 'homidovazizjon9@gmail.com';
+const ROLE_LABELS = {
+  superadmin: 'Суперадмин',
+  director:   'Директор',
+  accountant: 'Бухгалтер',
+  cashier:    'Кассир',
+  observer:   'Наблюдатель'
+};
+const ROLE_COLORS = {
+  superadmin: 'var(--gold)',
+  director:   'var(--blue)',
+  accountant: 'var(--green)',
+  cashier:    'var(--orange)',
+  observer:   'var(--text3)'
+};
+
 // ---- State ----
 let students = {};
 let payments = {};
 let expenses = {};
+let usersData = {};
+let auditLogData = [];
 let activeClass = "11а";
 let activePage = "dashboard";
 let editingStudentId = null;
@@ -84,6 +103,22 @@ let studentSortKey = "name";
 let studentSortDir = "asc";
 let expensePieChart = null;
 let importedStudents = [];
+
+// ---- Role State ----
+let currentUserRole = 'observer';
+let currentUserId = null;
+let currentUserName = 'Пользователь';
+
+// ---- Permission Helpers ----
+function canEdit() {
+  return currentUserRole === 'superadmin' || currentUserRole === 'cashier';
+}
+function canViewHistory() {
+  return currentUserRole !== 'observer';
+}
+function canManageUsers() {
+  return currentUserRole === 'superadmin';
+}
 
 const now = new Date();
 let currentMonth = now.getMonth();
@@ -118,31 +153,63 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("authScreen").classList.add("hidden");
 
   // Auth state listener — controls what user sees
-  onAuthStateChanged(auth, (user) => {
-    // Always hide loader once auth state is known
+  onAuthStateChanged(auth, async (user) => {
     document.getElementById("loaderScreen").classList.add("hidden");
 
     if (user) {
-      // Check whitelist if it has entries
       if (ALLOWED_EMAILS.length > 0 && !ALLOWED_EMAILS.includes(user.email)) {
         showAuthError(`Доступ запрещён для ${user.email}. Обратитесь к администратору.`);
         signOut(auth);
         return;
       }
-      // Logged in — show app
+
+      // Set identity
+      currentUserId = user.uid;
+      currentUserName = user.displayName || user.email || 'Пользователь';
+
+      // Determine role
+      if (user.email === SUPERADMIN_EMAIL) {
+        currentUserRole = 'superadmin';
+        // Ensure superadmin record exists
+        set(ref(db, `users/${user.uid}`), {
+          email: user.email, name: currentUserName,
+          role: 'superadmin', photoURL: user.photoURL || '',
+          lastLogin: Date.now(), createdAt: Date.now()
+        }).catch(() => {});
+      } else {
+        try {
+          const snap = await get(ref(db, `users/${user.uid}`));
+          if (snap.exists()) {
+            currentUserRole = snap.val().role || 'observer';
+          } else {
+            currentUserRole = 'observer';
+            await set(ref(db, `users/${user.uid}`), {
+              email: user.email, name: currentUserName,
+              role: 'observer', photoURL: user.photoURL || '',
+              createdAt: Date.now(), lastLogin: Date.now()
+            });
+            showToast('Добро пожаловать! Вам назначена роль: Наблюдатель');
+          }
+          // Update last login
+          set(ref(db, `users/${user.uid}/lastLogin`), Date.now()).catch(() => {});
+        } catch(e) {
+          console.error('Role load error:', e);
+          currentUserRole = 'observer';
+        }
+      }
+
       document.getElementById("authScreen").classList.add("hidden");
       document.getElementById("app-shell").classList.remove("hidden");
       renderUserInfo(user);
-      // Setup UI only once (DOM wiring)
       if (!isAppInitialized) {
         isAppInitialized = true;
         setupUI();
       }
-      // Always re-subscribe to get fresh realtime data
       subscribeToData();
     } else {
-      // Logged out — show auth screen, hide app
       isAppInitialized = false;
+      currentUserRole = 'observer';
+      currentUserId = null;
       document.getElementById("authScreen").classList.remove("hidden");
       document.getElementById("app-shell").classList.add("hidden");
     }
@@ -188,7 +255,6 @@ function subscribeToData() {
     console.error("DB error:", err.code, err.message);
     showToast("Ошибка чтения: " + err.code, true);
   };
-  // Show skeletons while first load
   renderSkeleton("classContent", 6);
   renderSkeleton("recentPayments", 4);
   renderSkeleton("debtorsGrid", 3);
@@ -204,6 +270,18 @@ function subscribeToData() {
   _unsubs.push(onValue(ref(db, "expenses"), snap => {
     expenses = snap.val() || {};
     refreshAll();
+  }, onErr));
+  _unsubs.push(onValue(ref(db, "users"), snap => {
+    usersData = snap.val() || {};
+    renderUsersPage();
+    populateHistoryUserFilter();
+  }, onErr));
+  _unsubs.push(onValue(ref(db, "auditLog"), snap => {
+    const raw = snap.val() || {};
+    auditLogData = Object.entries(raw)
+      .map(([id, v]) => ({ id, ...v }))
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    renderHistory();
   }, onErr));
 }
 
@@ -224,8 +302,8 @@ function renderUserInfo(user) {
   const now = new Date();
   const timeStr = now.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
   const dateStr = now.toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  const roleLabel = ROLE_LABELS[currentUserRole] || 'Наблюдатель';
 
-  // Desktop sidebar user info
   const el = document.getElementById("userInfo");
   if (el) {
     const avatarHtml = user.photoURL
@@ -238,9 +316,9 @@ function renderUserInfo(user) {
           <div class="user-online-dot"></div>
         </div>
         <div class="user-details">
-          <div class="user-name">${user.displayName || "Пользователь"}</div>
+          <div class="user-name">${user.displayName || 'Пользователь'}</div>
           <div class="user-email">${user.email}</div>
-          <div class="user-last-login">Вход: ${dateStr}, ${timeStr}</div>
+          <div class="role-badge role-${currentUserRole}">${roleLabel}</div>
         </div>
       </div>`;
   }
@@ -402,6 +480,27 @@ function setupUI() {
 
   // ── Edit payment ──
   document.getElementById("saveEditPaymentBtn")?.addEventListener("click", saveEditPayment);
+
+  if (canViewHistory()) {
+    document.querySelectorAll('.nav-history, .mob-nav-history').forEach(el => el.style.display = '');
+  }
+  if (canManageUsers()) {
+    document.querySelectorAll('.nav-users').forEach(el => el.style.display = '');
+  }
+  // Hide edit buttons for read-only roles
+  if (!canEdit()) {
+    ['addStudentBtn','selectModeBtn','importCsvBtn','addPaymentBtn','addExpenseBtn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+  }
+
+  // ── History filters ──
+  document.getElementById('historyFilterUser')?.addEventListener('change', renderHistory);
+  document.getElementById('historyFilterAction')?.addEventListener('change', renderHistory);
+
+  // ── Filter status in payments ──
+  document.getElementById('filterStatus')?.addEventListener('change', renderPaymentsTable);
 
   // ── Populate edit modal month/year selects ──
   const editMonthSel = document.getElementById("editPaymentMonth");
@@ -668,11 +767,11 @@ function renderClassContent(cls) {
       ? `<td><input type="checkbox" class="row-checkbox" ${isSelected ? "checked" : ""}
            onchange="toggleStudentSelect('${s.id}', this.checked)"></td>`
       : "";
-    const actionsCol = selectMode ? `<td></td>` : `<td>
+    const actionsCol = selectMode ? `<td></td>` : canEdit() ? `<td>
         <button class="action-btn" onclick="quickPayment('${s.id}')" title="Добавить платёж">💳</button>
         <button class="action-btn" onclick="editStudent('${s.id}')" title="Редактировать">✏️</button>
         <button class="action-btn danger" onclick="deleteStudent('${s.id}')" title="Удалить">🗑️</button>
-      </td>`;
+      </td>` : `<td></td>`;
 
     return `<tr class="${isSelected ? "selected" : ""}">
       ${checkboxCol}
@@ -904,7 +1003,7 @@ function renderExpenses() {
         <div class="expense-meta">${capitalize(e.category || "прочее")} · ${formatDate(e.date)}</div>
       </div>
       <div class="expense-amount">−${formatMoney(e.amount)}</div>
-      <button class="expense-delete" onclick="deleteExpense('${e.id}')" title="Удалить">✕</button>
+      ${canEdit() ? `<button class="expense-delete" onclick="deleteExpense('${e.id}')" title="Удалить">✕</button>` : ''}
     </div>`).join("");
 
   renderExpensePieChart(byCategory);
@@ -1016,9 +1115,9 @@ function renderPaymentsTable() {
       <td class="amount-cell">${formatMoney(p.amount)}</td>
       <td>${MONTHS_RU[Number(p.month) || 0]} ${p.year || ""}</td>
       <td>${p.createdAt ? formatDate(new Date(p.createdAt).toISOString().split("T")[0]) : "—"}</td>
-      <td>
+      <td>${canEdit() ? `
         <button class="action-btn" onclick="openEditPayment('${p.id}')" title="Редактировать">✏️</button>
-        <button class="action-btn danger" onclick="deletePayment('${p.id}')" title="Удалить">🗑️</button>
+        <button class="action-btn danger" onclick="deletePayment('${p.id}')" title="Удалить">🗑️</button>` : ''}
       </td>
     </tr>`).join("");
 
@@ -1068,9 +1167,11 @@ async function saveStudent() {
   try {
     if (editingStudentId) {
       await set(ref(db, `students/${editingStudentId}`), { name, class: cls, fee, phone });
+      logAction('student_edit', { name, class: cls, fee });
       showToast("Ученик обновлён");
     } else {
       await push(ref(db, "students"), { name, class: cls, fee, phone, createdAt: Date.now() });
+      logAction('student_add', { name, class: cls, fee });
       showToast("Ученик добавлен");
     }
     closeModal("modalStudent");
@@ -1094,7 +1195,9 @@ window.editStudent = function(id) {
 
 window.deleteStudent = async function(id) {
   if (!confirm("Удалить ученика? Все его платежи останутся.")) return;
+  const s = students[id];
   await remove(ref(db, `students/${id}`));
+  logAction('student_delete', { name: s?.name, class: s?.class });
   showToast("Ученик удалён");
 };
 
@@ -1150,16 +1253,10 @@ async function savePayment() {
 
   try {
     await push(ref(db, "payments"), {
-      studentId,
-      studentName: student.name,
-      studentClass: student.class,
-      amount,
-      month,
-      year,
-      monthKey,
-      note,
-      createdAt: Date.now()
+      studentId, studentName: student.name, studentClass: student.class,
+      amount, month, year, monthKey, note, createdAt: Date.now()
     });
+    logAction('payment_add', { studentName: student.name, studentClass: student.class, amount, month: MONTHS_RU[month], year });
     showToast(`Платёж ${formatMoney(amount)} сохранён`);
     closeModal("modalPayment");
   } catch (e) {
@@ -1169,7 +1266,9 @@ async function savePayment() {
 
 window.deletePayment = async function(id) {
   if (!confirm("Удалить платёж?")) return;
+  const p = payments[id];
   await remove(ref(db, `payments/${id}`));
+  logAction('payment_delete', { studentName: p?.studentName, amount: p?.amount });
   showToast("Платёж удалён");
 };
 
@@ -1186,6 +1285,7 @@ async function saveExpense() {
 
   try {
     await push(ref(db, "expenses"), { description, amount, category, date, createdAt: Date.now() });
+    logAction('expense_add', { description, amount, category });
     showToast("Расход добавлен");
     closeModal("modalExpense");
   } catch (e) {
@@ -1195,7 +1295,9 @@ async function saveExpense() {
 
 window.deleteExpense = async function(id) {
   if (!confirm("Удалить расход?")) return;
+  const e = expenses[id];
   await remove(ref(db, `expenses/${id}`));
+  logAction('expense_delete', { description: e?.description, amount: e?.amount });
   showToast("Расход удалён");
 };
 
@@ -1295,7 +1397,7 @@ async function markSelectedAsPaid() {
     if (!s) continue;
     const alreadyPaid = getPaidAmount(studentId, month, year);
     const fee = Number(s.fee) || 0;
-    if (alreadyPaid >= fee) continue; // already paid
+    if (alreadyPaid >= fee) continue;
     try {
       await push(ref(db, "payments"), {
         studentId, studentName: s.name, studentClass: s.class,
@@ -1305,6 +1407,7 @@ async function markSelectedAsPaid() {
       count++;
     } catch(e) { console.error("Batch pay error:", e); }
   }
+  if (count > 0) logAction('batch_paid', { count, month: MONTHS_RU[month], year });
   showToast(`Отмечено оплаченными: ${count} учеников`);
   cancelSelectMode();
 }
@@ -1341,9 +1444,11 @@ function copyDebtorsList() {
 // =============================================
 function downloadCSV(filename, rows) {
   const BOM = "\uFEFF"; // UTF-8 BOM for Excel
-  const csv = BOM + rows.map(r => r.map(cell =>
+  const SEP = ";";
+  // sep=; hint tells Excel which separator to use (works in Russian/CIS locale)
+  const csv = BOM + "sep=;\r\n" + rows.map(r => r.map(cell =>
     `"${String(cell ?? "").replace(/"/g, '""')}"`
-  ).join(",")).join("\n");
+  ).join(SEP)).join("\r\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -1503,9 +1608,9 @@ async function saveEditPayment() {
   const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
   try {
     await set(ref(db, `payments/${editingPaymentId}`), {
-      ...p, amount, month, year, monthKey, note,
-      updatedAt: Date.now()
+      ...p, amount, month, year, monthKey, note, updatedAt: Date.now()
     });
+    logAction('payment_edit', { studentName: p.studentName, amount, month: MONTHS_RU[month], year });
     showToast("Платёж обновлён");
     closeModal("modalEditPayment");
     editingPaymentId = null;
@@ -1513,11 +1618,136 @@ async function saveEditPayment() {
     showToast("Ошибка: " + e.message, true);
   }
 }
+// =============================================
+// AUDIT LOG
+// =============================================
+async function logAction(action, details = {}) {
+  if (!currentUserId) return;
+  try {
+    await push(ref(db, 'auditLog'), {
+      action, userId: currentUserId,
+      userName: currentUserName,
+      userRole: currentUserRole,
+      timestamp: Date.now(),
+      details
+    });
+  } catch(e) { console.warn('Log error:', e); }
+}
 
+const ACTION_LABELS = {
+  payment_add:    ['➕', 'Добавлен платёж', 'add'],
+  payment_edit:   ['✏️', 'Изменён платёж', 'edit'],
+  payment_delete: ['🗑', 'Удалён платёж', 'delete'],
+  student_add:    ['➕', 'Добавлен ученик', 'add'],
+  student_edit:   ['✏️', 'Изменён ученик', 'edit'],
+  student_delete: ['🗑', 'Удалён ученик', 'delete'],
+  expense_add:    ['➕', 'Добавлен расход', 'add'],
+  expense_delete: ['🗑', 'Удалён расход', 'delete'],
+  batch_paid:     ['✓', 'Пакетная оплата', 'batch'],
+};
 
+function renderHistory() {
+  const el = document.getElementById('historyFeed');
+  if (!el) return;
+  const filterUser   = document.getElementById('historyFilterUser')?.value || '';
+  const filterAction = document.getElementById('historyFilterAction')?.value || '';
+
+  let items = [...auditLogData];
+  if (filterUser)   items = items.filter(i => i.userId === filterUser);
+  if (filterAction) items = items.filter(i => i.action === filterAction);
+
+  if (!items.length) {
+    el.innerHTML = '<div class="empty-state">Нет записей</div>';
+    return;
+  }
+
+  el.innerHTML = items.slice(0, 200).map((item, idx) => {
+    const [icon, label, cls] = ACTION_LABELS[item.action] || ['•', item.action, 'add'];
+    const d = item.details || {};
+    let detail = '';
+    if (d.studentName) detail += d.studentName;
+    if (d.amount)      detail += ` — ${Number(d.amount).toLocaleString('ru-RU')} с`;
+    if (d.name)        detail = d.name + (d.class ? ` (${d.class.toUpperCase()})` : '');
+    if (d.description) detail = d.description + (d.amount ? ` — ${Number(d.amount).toLocaleString('ru-RU')} с` : '');
+    const when = item.timestamp
+      ? new Date(item.timestamp).toLocaleString('ru-RU', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+      : '';
+    const roleLabel = ROLE_LABELS[item.userRole] || item.userRole;
+    return `<div class="history-item" style="animation-delay:${idx*0.03}s">
+      <div class="history-icon ${cls}">${icon}</div>
+      <div class="history-body">
+        <div class="history-action">${label}</div>
+        ${detail ? `<div class="history-detail">${detail}</div>` : ''}
+      </div>
+      <div class="history-meta">
+        <div class="history-who">${item.userName || '—'}</div>
+        <div class="history-when">${when}</div>
+        <div class="history-role-badge role-badge role-${item.userRole}">${roleLabel}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function populateHistoryUserFilter() {
+  const sel = document.getElementById('historyFilterUser');
+  if (!sel) return;
+  const current = sel.value;
+  const users = Object.entries(usersData).map(([uid, u]) => ({ uid, ...u }));
+  sel.innerHTML = '<option value="">Все пользователи</option>' +
+    users.map(u => `<option value="${u.uid}" ${u.uid === current ? 'selected' : ''}>${u.name || u.email}</option>`).join('');
+}
 
 // =============================================
-// MOBILE LOGOUT MENU (tap avatar)
+// USERS PAGE
+// =============================================
+function renderUsersPage() {
+  const el = document.getElementById('usersList');
+  if (!el) return;
+  const users = Object.entries(usersData).map(([uid, u]) => ({ uid, ...u }));
+  if (!users.length) {
+    el.innerHTML = '<div class="empty-state">Нет зарегистрированных пользователей</div>';
+    return;
+  }
+  const roleOptions = Object.entries(ROLE_LABELS).map(([val, label]) =>
+    `<option value="${val}">${label}</option>`
+  ).join('');
+
+  el.innerHTML = users.sort((a,b) => (a.name||'').localeCompare(b.name||'', 'ru')).map(u => {
+    const isSelf = u.uid === currentUserId;
+    const lastLogin = u.lastLogin
+      ? new Date(u.lastLogin).toLocaleString('ru-RU', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})
+      : 'никогда';
+    const initials = (u.name || u.email || '?').split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
+    const avatarHtml = u.photoURL
+      ? `<img src="${u.photoURL}" class="user-row-avatar" style="display:block" onerror="this.style.display='none'">`
+      : `<div class="user-row-avatar">${initials}</div>`;
+    return `<div class="user-row${isSelf ? ' user-row-self' : ''}">
+      ${avatarHtml}
+      <div class="user-row-info">
+        <div class="user-row-name">${u.name || u.email} ${isSelf ? '<span style="color:var(--text3);font-size:11px">(вы)</span>' : ''}</div>
+        <div class="user-row-email">${u.email || ''}</div>
+        <div class="user-row-meta">Последний вход: ${lastLogin}</div>
+      </div>
+      <div class="user-row-role">
+        <select ${isSelf ? 'disabled' : ''} onchange="changeUserRole('${u.uid}', this.value)">
+          ${Object.entries(ROLE_LABELS).map(([val, label]) =>
+            `<option value="${val}" ${u.role === val ? 'selected' : ''}>${label}</option>`
+          ).join('')}
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.changeUserRole = async function(uid, newRole) {
+  try {
+    await set(ref(db, `users/${uid}/role`), newRole);
+    showToast(`Роль изменена на ${ROLE_LABELS[newRole]}`);
+  } catch(e) {
+    showToast('Ошибка: ' + e.message, true);
+  }
+};
+
 // =============================================
 function showMobileLogoutMenu() {
   // Remove existing if any

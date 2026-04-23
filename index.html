@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1776944141" />
+  <link rel="stylesheet" href="style.css?v=1777000001" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -83,6 +83,14 @@
         <button class="nav-item" data-page="payments">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
           <span>Платежи</span>
+        </button>
+        <button class="nav-item nav-history" data-page="history" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>История</span>
+        </button>
+        <button class="nav-item nav-users" data-page="users" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="23" y2="8"/><line x1="21" y1="6" x2="21" y2="10"/></svg>
+          <span>Доступ</span>
         </button>
       </nav>
 
@@ -314,6 +322,44 @@
         </div>
       </div>
 
+      <!-- HISTORY PAGE -->
+      <div class="page" id="page-history">
+        <div class="page-header">
+          <h1 class="page-title">История изменений</h1>
+          <div class="btn-group">
+            <select id="historyFilterUser" class="search-input" style="min-width:180px">
+              <option value="">Все пользователи</option>
+            </select>
+            <select id="historyFilterAction" class="search-input" style="min-width:180px">
+              <option value="">Все действия</option>
+              <option value="payment_add">+ Платёж</option>
+              <option value="payment_edit">✏️ Платёж</option>
+              <option value="payment_delete">🗑 Платёж</option>
+              <option value="student_add">+ Ученик</option>
+              <option value="student_edit">✏️ Ученик</option>
+              <option value="student_delete">🗑 Ученик</option>
+              <option value="expense_add">+ Расход</option>
+              <option value="expense_delete">🗑 Расход</option>
+              <option value="batch_paid">✓ Пакет</option>
+            </select>
+          </div>
+        </div>
+        <div class="history-feed" id="historyFeed">
+          <div class="empty-state">Нет записей</div>
+        </div>
+      </div>
+
+      <!-- USERS PAGE -->
+      <div class="page" id="page-users">
+        <div class="page-header">
+          <h1 class="page-title">Управление доступом</h1>
+        </div>
+        <div class="users-hint">Назначайте роли сотрудникам. Кассир может вносить изменения, остальные — только просмотр.</div>
+        <div class="users-list" id="usersList">
+          <div class="empty-state">Загрузка...</div>
+        </div>
+      </div>
+
     </main>
   </div>
 
@@ -434,9 +480,44 @@
         <button class="btn-primary" id="saveExpenseBtn">Сохранить</button>
       </div>
     </div>
-  </div>
 
-  <!-- Edit Payment Modal -->
+    <!-- Edit Payment Modal -->
+    <div class="modal" id="modalEditPayment">
+      <div class="modal-header">
+        <h3>Редактировать платёж</h3>
+        <button class="modal-close" data-modal="modalEditPayment">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Ученик</label>
+          <input type="text" id="editPaymentStudent" disabled style="opacity:.6;cursor:not-allowed">
+        </div>
+        <div class="form-group">
+          <label>Сумма (сомони)</label>
+          <input type="number" id="editPaymentAmount" placeholder="200">
+        </div>
+        <div class="form-group form-row">
+          <div>
+            <label>Месяц</label>
+            <select id="editPaymentMonth"></select>
+          </div>
+          <div>
+            <label>Год</label>
+            <select id="editPaymentYear"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Примечание</label>
+          <input type="text" id="editPaymentNote" placeholder="Оплата за апрель">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" data-modal="modalEditPayment">Отмена</button>
+        <button class="btn-primary" id="saveEditPaymentBtn">Сохранить</button>
+      </div>
+    </div>
+
+  </div>
   <div class="modal" id="modalEditPayment">
     <div class="modal-header">
       <h3>Редактировать платёж</h3>
@@ -530,11 +611,15 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
       <span>Платежи</span>
     </button>
+    <button class="mob-nav-item mob-nav-history" data-page="history" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      <span>История</span>
+    </button>
   </nav>
 
   </div> <!-- /app-shell -->
   </div> <!-- /app -->
 
-  <script type="module" src="app.js?v=1776944141"></script>
+  <script type="module" src="app.js?v=1777000001"></script>
 </body>
 </html>
