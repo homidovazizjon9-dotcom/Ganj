@@ -1466,14 +1466,43 @@ function copyDebtorsList() {
 // =============================================
 // CSV EXPORT
 // =============================================
+// Encode JS string to Windows-1251 (cp1251) — required for correct Cyrillic in Excel
+function encodeCP1251(str) {
+  // Cyrillic block: А-Я → 0xC0-0xDF, а-я → 0xE0-0xFF
+  const map = {
+    '\u0410':0xC0,'\u0411':0xC1,'\u0412':0xC2,'\u0413':0xC3,'\u0414':0xC4,
+    '\u0415':0xC5,'\u0416':0xC6,'\u0417':0xC7,'\u0418':0xC8,'\u0419':0xC9,
+    '\u041A':0xCA,'\u041B':0xCB,'\u041C':0xCC,'\u041D':0xCD,'\u041E':0xCE,
+    '\u041F':0xCF,'\u0420':0xD0,'\u0421':0xD1,'\u0422':0xD2,'\u0423':0xD3,
+    '\u0424':0xD4,'\u0425':0xD5,'\u0426':0xD6,'\u0427':0xD7,'\u0428':0xD8,
+    '\u0429':0xD9,'\u042A':0xDA,'\u042B':0xDB,'\u042C':0xDC,'\u042D':0xDD,
+    '\u042E':0xDE,'\u042F':0xDF,
+    '\u0430':0xE0,'\u0431':0xE1,'\u0432':0xE2,'\u0433':0xE3,'\u0434':0xE4,
+    '\u0435':0xE5,'\u0436':0xE6,'\u0437':0xE7,'\u0438':0xE8,'\u0439':0xE9,
+    '\u043A':0xEA,'\u043B':0xEB,'\u043C':0xEC,'\u043D':0xED,'\u043E':0xEE,
+    '\u043F':0xEF,'\u0440':0xF0,'\u0441':0xF1,'\u0442':0xF2,'\u0443':0xF3,
+    '\u0444':0xF4,'\u0445':0xF5,'\u0446':0xF6,'\u0447':0xF7,'\u0448':0xF8,
+    '\u0449':0xF9,'\u044A':0xFA,'\u044B':0xFB,'\u044C':0xFC,'\u044D':0xFD,
+    '\u044E':0xFE,'\u044F':0xFF,
+    '\u0401':0xA8,'\u0451':0xB8,  // Ё ё
+    '\u2116':0xB9,'\u2014':0x97,'\u2013':0x96,'\u00AB':0xAB,'\u00BB':0xBB
+  };
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code < 128 ? code : (map[str[i]] ?? 0x3F); // 0x3F = '?'
+  }
+  return bytes;
+}
+
 function downloadCSV(filename, rows) {
-  const BOM = "\uFEFF"; // UTF-8 BOM for Excel
   const SEP = ";";
-  // sep=; hint tells Excel which separator to use (works in Russian/CIS locale)
-  const csv = BOM + "sep=;\r\n" + rows.map(r => r.map(cell =>
+  // No BOM for cp1251 — Excel reads it natively on Russian Windows
+  const csv = "sep=;\r\n" + rows.map(r => r.map(cell =>
     `"${String(cell ?? "").replace(/"/g, '""')}"`
   ).join(SEP)).join("\r\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const bytes = encodeCP1251(csv);
+  const blob = new Blob([bytes], { type: "text/csv;charset=windows-1251;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
