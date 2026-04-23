@@ -74,6 +74,10 @@ let expenses = {};
 let activeClass = "11а";
 let activePage = "dashboard";
 let editingStudentId = null;
+let selectMode = false;
+let selectedStudents = new Set();
+let studentSearchQuery = "";
+let studentStatusFilter = "";
 
 const now = new Date();
 let currentMonth = now.getMonth();
@@ -331,6 +335,31 @@ function setupUI() {
   // Debtor selects
   document.getElementById("debtorMonth").addEventListener("change", renderDebtors);
   document.getElementById("debtorYear").addEventListener("change", renderDebtors);
+
+  // ── Export & utility buttons ──
+  document.getElementById("exportClassCsvBtn")?.addEventListener("click", exportClassCSV);
+  document.getElementById("exportPaymentsCsvBtn")?.addEventListener("click", exportPaymentsCSV);
+  document.getElementById("exportPaymentsPdfBtn")?.addEventListener("click", exportPaymentsPDF);
+  document.getElementById("exportDebtorsCsvBtn")?.addEventListener("click", exportDebtorsCSV);
+  document.getElementById("copyDebtorsBtn")?.addEventListener("click", copyDebtorsList);
+
+  // ── Batch select ──
+  document.getElementById("selectModeBtn")?.addEventListener("click", toggleSelectMode);
+  document.getElementById("batchCancelBtn")?.addEventListener("click", cancelSelectMode);
+  document.getElementById("batchPaidBtn")?.addEventListener("click", markSelectedAsPaid);
+
+  // ── Search & filter in classes ──
+  document.getElementById("studentSearch")?.addEventListener("input", e => {
+    studentSearchQuery = e.target.value.toLowerCase();
+    renderClassContent(activeClass);
+  });
+  document.getElementById("statusFilter")?.addEventListener("change", e => {
+    studentStatusFilter = e.target.value;
+    renderClassContent(activeClass);
+  });
+
+  // ── Search in payments ──
+  document.getElementById("searchStudent")?.addEventListener("input", renderPaymentsTable);
 }
 
 function populateMonthSelects() {
@@ -492,34 +521,53 @@ function renderClassContent(cls) {
   let paidCount = 0;
   let totalCollected = 0;
 
-  const rows = classStudents.map(s => {
+  // Apply search & status filter
+  let filtered = classStudents;
+  if (studentSearchQuery) {
+    filtered = filtered.filter(s => (s.name || "").toLowerCase().includes(studentSearchQuery));
+  }
+
+  const rows = filtered.map(s => {
     const paid = getPaidAmount(s.id, currentMonth, currentYear);
     const fee = Number(s.fee) || 0;
     totalCollected += paid;
 
-    let statusHtml;
+    let statusKey, statusHtml;
     if (paid >= fee) {
       paidCount++;
+      statusKey = "paid";
       statusHtml = `<span class="status-badge status-paid">✓ Оплачено</span>`;
     } else if (paid > 0) {
+      statusKey = "partial";
       statusHtml = `<span class="status-badge status-partial">~ Частично</span>`;
     } else {
+      statusKey = "unpaid";
       statusHtml = `<span class="status-badge status-unpaid">✕ Не оплачено</span>`;
     }
 
-    return `<tr>
+    if (studentStatusFilter && statusKey !== studentStatusFilter) return "";
+
+    const isSelected = selectedStudents.has(s.id);
+    const checkboxCol = selectMode
+      ? `<td><input type="checkbox" class="row-checkbox" ${isSelected ? "checked" : ""}
+           onchange="toggleStudentSelect('${s.id}', this.checked)"></td>`
+      : "";
+    const actionsCol = selectMode ? `<td></td>` : `<td>
+        <button class="action-btn" onclick="quickPayment('${s.id}')" title="Добавить платёж">💳</button>
+        <button class="action-btn" onclick="editStudent('${s.id}')" title="Редактировать">✏️</button>
+        <button class="action-btn danger" onclick="deleteStudent('${s.id}')" title="Удалить">🗑️</button>
+      </td>`;
+
+    return `<tr class="${isSelected ? "selected" : ""}">
+      ${checkboxCol}
       <td>${s.name || "—"}</td>
       <td>${s.phone || "—"}</td>
       <td>${formatMoney(fee)}</td>
       <td>${paid > 0 ? formatMoney(paid) : "—"}</td>
       <td>${statusHtml}</td>
-      <td>
-        <button class="action-btn" onclick="quickPayment('${s.id}')" title="Добавить платёж">💳</button>
-        <button class="action-btn" onclick="editStudent('${s.id}')" title="Редактировать">✏️</button>
-        <button class="action-btn danger" onclick="deleteStudent('${s.id}')" title="Удалить">🗑️</button>
-      </td>
+      ${actionsCol}
     </tr>`;
-  }).join("");
+  }).filter(Boolean).join("");
 
   const total = classStudents.length;
   const unpaid = total - paidCount;
@@ -536,9 +584,10 @@ function renderClassContent(cls) {
       <table class="students-table">
         <thead>
           <tr>
+            ${selectMode ? '<th><input type="checkbox" class="row-checkbox" onchange="toggleSelectAll(this.checked)"></th>' : ""}
             <th>Имя</th><th>Телефон</th><th>Плата/мес</th>
             <th>${MONTHS_RU[currentMonth]} ${currentYear}</th>
-            <th>Статус</th><th>Действия</th>
+            <th>Статус</th><th>${selectMode ? "" : "Действия"}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -677,6 +726,8 @@ function renderPaymentsTable() {
   const filterMonth = document.getElementById("filterMonth")?.value;
   const filterYear = document.getElementById("filterYear")?.value;
 
+  const searchVal = (document.getElementById("searchStudent")?.value || "").toLowerCase();
+
   let paymentsArr = Object.entries(payments).map(([id, p]) => ({ id, ...p }));
 
   if (filterClass) paymentsArr = paymentsArr.filter(p => p.studentClass === filterClass);
@@ -684,6 +735,7 @@ function renderPaymentsTable() {
     paymentsArr = paymentsArr.filter(p => String(p.month) === String(filterMonth));
   }
   if (filterYear) paymentsArr = paymentsArr.filter(p => String(p.year) === String(filterYear));
+  if (searchVal) paymentsArr = paymentsArr.filter(p => (p.studentName || "").toLowerCase().includes(searchVal));
 
   paymentsArr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
@@ -894,6 +946,222 @@ function closeModal(id) {
 function closeAllModals() {
   document.querySelectorAll(".modal").forEach(m => m.classList.remove("active"));
   document.getElementById("modalOverlay").classList.remove("active");
+}
+
+
+// =============================================
+// BATCH SELECT
+// =============================================
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  selectedStudents.clear();
+  const btn = document.getElementById("selectModeBtn");
+  const bar = document.getElementById("batchBar");
+  if (btn) btn.textContent = selectMode ? "✕ Отмена" : "☑ Выбрать";
+  bar?.classList.toggle("hidden", !selectMode);
+  renderClassContent(activeClass);
+}
+
+function cancelSelectMode() {
+  selectMode = false;
+  selectedStudents.clear();
+  const btn = document.getElementById("selectModeBtn");
+  const bar = document.getElementById("batchBar");
+  if (btn) btn.textContent = "☑ Выбрать";
+  bar?.classList.add("hidden");
+  renderClassContent(activeClass);
+}
+
+window.toggleStudentSelect = function(id, checked) {
+  if (checked) selectedStudents.add(id);
+  else selectedStudents.delete(id);
+  const info = document.getElementById("batchInfo");
+  if (info) info.textContent = `Выбрано: ${selectedStudents.size}`;
+};
+
+window.toggleSelectAll = function(checked) {
+  const classStudents = Object.entries(students)
+    .filter(([, s]) => s.class === activeClass)
+    .map(([id]) => id);
+  if (checked) classStudents.forEach(id => selectedStudents.add(id));
+  else selectedStudents.clear();
+  const info = document.getElementById("batchInfo");
+  if (info) info.textContent = `Выбрано: ${selectedStudents.size}`;
+  renderClassContent(activeClass);
+};
+
+async function markSelectedAsPaid() {
+  if (selectedStudents.size === 0) { showToast("Выберите учеников", true); return; }
+  const month = currentMonth;
+  const year = currentYear;
+  const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
+  let count = 0;
+  for (const studentId of selectedStudents) {
+    const s = students[studentId];
+    if (!s) continue;
+    const alreadyPaid = getPaidAmount(studentId, month, year);
+    const fee = Number(s.fee) || 0;
+    if (alreadyPaid >= fee) continue; // already paid
+    try {
+      await push(ref(db, "payments"), {
+        studentId, studentName: s.name, studentClass: s.class,
+        amount: fee - alreadyPaid, month, year, monthKey,
+        note: "Пакетная оплата", createdAt: Date.now()
+      });
+      count++;
+    } catch(e) { console.error("Batch pay error:", e); }
+  }
+  showToast(`Отмечено оплаченными: ${count} учеников`);
+  cancelSelectMode();
+}
+
+// =============================================
+// COPY DEBTORS LIST
+// =============================================
+function copyDebtorsList() {
+  const month = parseInt(document.getElementById("debtorMonth")?.value ?? currentMonth);
+  const year = parseInt(document.getElementById("debtorYear")?.value ?? currentYear);
+  const debtors = getDebtorsList(month, year);
+  const monthName = MONTHS_RU[month] + " " + year;
+
+  let lines = [`📋 Список должников — ${monthName}\n`];
+  let total = 0;
+  CLASSES.forEach(cls => {
+    const list = debtors[cls] || [];
+    if (list.length === 0) return;
+    lines.push(`\n${cls.toUpperCase()}:`);
+    list.forEach(d => {
+      lines.push(`  • ${d.name} — ${formatMoney(d.debt)}`);
+      total += d.debt;
+    });
+  });
+  lines.push(`\n💰 Общий долг: ${formatMoney(total)}`);
+
+  navigator.clipboard.writeText(lines.join("\n"))
+    .then(() => showToast("Список скопирован в буфер обмена ✓"))
+    .catch(() => showToast("Не удалось скопировать", true));
+}
+
+// =============================================
+// CSV EXPORT
+// =============================================
+function downloadCSV(filename, rows) {
+  const BOM = "\uFEFF"; // UTF-8 BOM for Excel
+  const csv = BOM + rows.map(r => r.map(cell =>
+    `"${String(cell ?? "").replace(/"/g, '""')}"`
+  ).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportPaymentsCSV() {
+  const rows = [["Ученик", "Класс", "Сумма (сомони)", "Месяц", "Год", "Дата записи", "Примечание"]];
+  Object.values(payments)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .forEach(p => {
+      rows.push([
+        p.studentName || "",
+        (p.studentClass || "").toUpperCase(),
+        p.amount || 0,
+        MONTHS_RU[Number(p.month)] || "",
+        p.year || "",
+        p.createdAt ? new Date(p.createdAt).toLocaleDateString("ru-RU") : "",
+        p.note || ""
+      ]);
+    });
+  downloadCSV(`platezhi_${currentYear}_${currentMonth + 1}.csv`, rows);
+  showToast("CSV платежей скачан");
+}
+
+function exportClassCSV() {
+  const classStudents = Object.entries(students)
+    .filter(([, s]) => s.class === activeClass)
+    .map(([id, s]) => ({ id, ...s }))
+    .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ru"));
+
+  const rows = [["Имя", "Класс", "Телефон", "Плата/мес", `${MONTHS_RU[currentMonth]} ${currentYear}`, "Статус"]];
+  classStudents.forEach(s => {
+    const paid = getPaidAmount(s.id, currentMonth, currentYear);
+    const fee = Number(s.fee) || 0;
+    const status = paid >= fee ? "Оплачено" : paid > 0 ? "Частично" : "Не оплачено";
+    rows.push([s.name || "", (s.class || "").toUpperCase(), s.phone || "", fee, paid || 0, status]);
+  });
+  downloadCSV(`klass_${activeClass}_${currentYear}_${currentMonth + 1}.csv`, rows);
+  showToast(`CSV класса ${activeClass.toUpperCase()} скачан`);
+}
+
+function exportDebtorsCSV() {
+  const month = parseInt(document.getElementById("debtorMonth")?.value ?? currentMonth);
+  const year = parseInt(document.getElementById("debtorYear")?.value ?? currentYear);
+  const debtors = getDebtorsList(month, year);
+  const monthName = MONTHS_RU[month] + " " + year;
+
+  const rows = [["Класс", "Имя ученика", "Долг (сомони)", "Месяц"]];
+  CLASSES.forEach(cls => {
+    (debtors[cls] || []).forEach(d => {
+      rows.push([cls.toUpperCase(), d.name, d.debt, monthName]);
+    });
+  });
+  downloadCSV(`dolzhniki_${year}_${month + 1}.csv`, rows);
+  showToast("CSV должников скачан");
+}
+
+// =============================================
+// PDF EXPORT (payments)
+// =============================================
+function exportPaymentsPDF() {
+  const monthName = MONTHS_RU[currentMonth] + " " + currentYear;
+  const paymentsArr = Object.values(payments)
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  let totalSum = 0;
+  const rows = paymentsArr.map(p => {
+    totalSum += Number(p.amount) || 0;
+    const date = p.createdAt ? new Date(p.createdAt).toLocaleDateString("ru-RU") : "—";
+    return `<tr>
+      <td>${p.studentName || "—"}</td>
+      <td>${(p.studentClass || "").toUpperCase()}</td>
+      <td style="font-weight:700;color:#1e6e3e">${Number(p.amount || 0).toLocaleString("ru-RU")} с</td>
+      <td>${MONTHS_RU[Number(p.month)] || ""} ${p.year || ""}</td>
+      <td>${date}</td>
+    </tr>`;
+  }).join("");
+
+  const html = `<!DOCTYPE html><html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Платежи — ${monthName}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 32px; color: #1a1a2e; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #f0f2f8; padding: 10px 12px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #666; }
+    td { padding: 10px 12px; border-bottom: 1px solid #eee; }
+    tr:hover td { background: #fafafa; }
+    .total { margin-top: 16px; text-align: right; font-size: 15px; font-weight: 700; }
+    .footer { margin-top: 32px; font-size: 11px; color: #aaa; text-align: center; }
+    @media print { body { padding: 16px; } }
+  </style>
+</head>
+<body>
+  <h1>Гимназия Ганч — История платежей</h1>
+  <div class="sub">Экспорт: ${new Date().toLocaleDateString("ru-RU")} · Всего записей: ${paymentsArr.length}</div>
+  <table>
+    <thead><tr><th>Ученик</th><th>Класс</th><th>Сумма</th><th>Месяц</th><th>Дата</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="total">Итого: ${totalSum.toLocaleString("ru-RU")} сомони</div>
+  <div class="footer">Гимназия Ганч · Сформировано автоматически</div>
+  <script>window.onload = () => window.print();<\/script>
+</body></html>`;
+
+  const win = window.open("", "_blank");
+  if (win) { win.document.write(html); win.document.close(); }
+  else showToast("Разрешите всплывающие окна для экспорта PDF", true);
 }
 
 // =============================================
