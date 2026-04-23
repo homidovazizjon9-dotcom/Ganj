@@ -1568,66 +1568,40 @@ tr.selected td { background: var(--gold-dim) !important; }
 }
 
 /* =============================================
-   EXPENSES LAYOUT — chart top, list below
+   EXPENSES LAYOUT (list + pie chart)
    ============================================= */
 .expenses-layout {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr 320px;
   gap: 20px;
+  align-items: start;
 }
-/* Chart card shown above list */
-.expenses-chart-wrap { order: -1; }
-.expenses-list { order: 0; }
-
-/* Horizontal chart card */
 .expenses-chart-wrap .card { padding: 20px; }
-.expense-chart-body {
-  display: flex;
-  align-items: center;
-  gap: 28px;
+.pie-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 240px;
+  margin: 0 auto 16px;
 }
-.expenses-chart-wrap .pie-wrap {
-  width: 160px;
-  height: 160px;
-  max-width: 160px;
-  flex-shrink: 0;
-  margin: 0;
-}
-.expenses-chart-wrap .pie-legend {
-  flex: 1;
+.pie-legend {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 .pie-legend-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 13px;
+  gap: 8px;
+  font-size: 12px;
   color: var(--text2);
-  padding: 6px 10px;
-  border-radius: 8px;
-  transition: background var(--transition);
 }
-.pie-legend-item:hover { background: var(--surface2); }
 .pie-legend-dot {
-  width: 12px; height: 12px;
-  border-radius: 4px;
+  width: 10px; height: 10px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 .pie-legend-label { flex: 1; }
 .pie-legend-value { font-weight: 700; color: var(--text); }
-.pie-legend-pct {
-  font-size: 11px;
-  color: var(--text3);
-  min-width: 36px;
-  text-align: right;
-}
-@media (max-width: 768px) {
-  .expenses-layout { gap: 12px; }
-  .expense-chart-body { flex-direction: column; align-items: flex-start; gap: 16px; }
-  .expenses-chart-wrap .pie-wrap { width: 140px; height: 140px; max-width: 140px; margin: 0 auto; }
-}
 
 /* =============================================
    SKELETON LOADERS
@@ -1660,9 +1634,7 @@ tr.selected td { background: var(--gold-dim) !important; }
 /* =============================================
    MOBILE CARD VIEW (tables → cards on small screens)
    ============================================= */
-/* Mobile card views — hidden by default on desktop */
 .student-card-list { display: none; }
-.payment-card-list  { display: none; }
 
 @media (max-width: 768px) {
   /* Hide table, show cards */

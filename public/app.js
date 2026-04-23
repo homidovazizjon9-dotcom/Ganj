@@ -283,27 +283,6 @@ function subscribeToData() {
       .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
     renderHistory();
   }, onErr));
-  // Real-time role change listener (skip superadmin — role is always fixed)
-  if (currentUserId && auth.currentUser?.email !== SUPERADMIN_EMAIL) {
-    _unsubs.push(onValue(ref(db, `users/${currentUserId}/role`), snap => {
-      if (!snap.exists()) return;
-      const newRole = snap.val();
-      if (newRole !== currentUserRole) {
-        currentUserRole = newRole;
-        renderUserInfo(auth.currentUser);
-        // Update nav visibility
-        document.querySelectorAll('.nav-users').forEach(el =>
-          el.style.display = canManageUsers() ? '' : 'none');
-        // Hide/show action buttons
-        ['addStudentBtn','selectModeBtn','importCsvBtn','addPaymentBtn','addExpenseBtn'].forEach(id => {
-          const el = document.getElementById(id);
-          if (el) el.style.display = canEdit() ? '' : 'none';
-        });
-        refreshAll();
-        showToast(`Ваша роль изменена: ${ROLE_LABELS[newRole]}`);
-      }
-    }));
-  }
 }
 
 function refreshAll() {
@@ -502,8 +481,9 @@ function setupUI() {
   // ── Edit payment ──
   document.getElementById("saveEditPaymentBtn")?.addEventListener("click", saveEditPayment);
 
-  // ── История visible to ALL roles ──
-  document.querySelectorAll('.nav-history, .mob-nav-history').forEach(el => el.style.display = '');
+  if (canViewHistory()) {
+    document.querySelectorAll('.nav-history, .mob-nav-history').forEach(el => el.style.display = '');
+  }
   if (canManageUsers()) {
     document.querySelectorAll('.nav-users').forEach(el => el.style.display = '');
   }
@@ -1068,19 +1048,15 @@ function renderExpensePieChart(byCategory) {
     }
   });
 
-  // Custom legend with percentage
+  // Custom legend
   const legendEl = document.getElementById("pieLegend");
   if (legendEl) {
-    legendEl.innerHTML = Object.entries(byCategory).map(([cat, amt], i) => {
-      const pct = total > 0 ? Math.round(amt / total * 100) : 0;
-      return `
-        <div class="pie-legend-item">
-          <div class="pie-legend-dot" style="background:${COLORS[i % COLORS.length]}"></div>
-          <div class="pie-legend-label">${capitalize(cat)}</div>
-          <div class="pie-legend-value">${formatMoney(amt)}</div>
-          <div class="pie-legend-pct">${pct}%</div>
-        </div>`;
-    }).join("");
+    legendEl.innerHTML = Object.entries(byCategory).map(([cat, amt], i) => `
+      <div class="pie-legend-item">
+        <div class="pie-legend-dot" style="background:${COLORS[i % COLORS.length]}"></div>
+        <div class="pie-legend-label">${capitalize(cat)}</div>
+        <div class="pie-legend-value">${formatMoney(amt)}</div>
+      </div>`).join("");
   }
 }
 

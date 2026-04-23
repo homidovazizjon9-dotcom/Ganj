@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Manrope:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=1777000001" />
+  <link rel="stylesheet" href="style.css?v=1777000002" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
 <body>
@@ -272,8 +272,10 @@
           <div class="expenses-chart-wrap">
             <div class="card">
               <div class="card-header"><h2>По категориям</h2><span class="card-badge" id="expChartPeriod">Этот месяц</span></div>
-              <div class="pie-wrap"><canvas id="expensePieChart"></canvas></div>
-              <div class="pie-legend" id="pieLegend"></div>
+              <div class="expense-chart-body">
+                <div class="pie-wrap"><canvas id="expensePieChart"></canvas></div>
+                <div class="pie-legend" id="pieLegend"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -354,7 +356,15 @@
         <div class="page-header">
           <h1 class="page-title">Управление доступом</h1>
         </div>
-        <div class="users-hint">Назначайте роли сотрудникам. Кассир может вносить изменения, остальные — только просмотр.</div>
+        <div class="users-hint">
+          <strong>Управление доступом:</strong> Чтобы дать сотруднику права на запись — назначьте роль <strong>Кассир</strong>.
+          Изменение вступает в силу мгновенно, повторный вход не нужен.<br>
+          <span style="opacity:.85">
+            &#128994; <strong>Кассир</strong> — добавлять/редактировать/удалять &nbsp;&nbsp;
+            &#128309; <strong>Директор / Бухгалтер</strong> — только просмотр &nbsp;&nbsp;
+            &#9898; <strong>Наблюдатель</strong> — ограниченный просмотр
+          </span>
+        </div>
         <div class="users-list" id="usersList">
           <div class="empty-state">Загрузка...</div>
         </div>
@@ -620,6 +630,6 @@
   </div> <!-- /app-shell -->
   </div> <!-- /app -->
 
-  <script type="module" src="app.js?v=1777000001"></script>
+  <script type="module" src="app.js?v=1777000002"></script>
 </body>
 </html>
