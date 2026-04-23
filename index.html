@@ -197,10 +197,29 @@
       <div class="page" id="page-classes">
         <div class="page-header">
           <h1 class="page-title">Классы</h1>
-          <button class="btn-primary" id="addStudentBtn">+ Добавить ученика</button>
+          <div class="btn-group">
+            <button class="btn-secondary" id="selectModeBtn">☑ Выбрать</button>
+            <button class="btn-secondary" id="exportClassCsvBtn">↓ CSV</button>
+            <button class="btn-primary" id="addStudentBtn">+ Добавить ученика</button>
+          </div>
+        </div>
+        <!-- Batch action bar (hidden by default) -->
+        <div class="batch-bar hidden" id="batchBar">
+          <span class="batch-info" id="batchInfo">Выбрано: 0</span>
+          <button class="btn-green" id="batchPaidBtn">✓ Отметить оплаченными</button>
+          <button class="btn-secondary" id="batchCancelBtn">Отмена</button>
         </div>
 
         <div class="class-tabs" id="classTabs"></div>
+        <div class="class-search-bar">
+          <input type="text" id="studentSearch" placeholder="🔍 Поиск ученика..." class="search-input">
+          <select id="statusFilter">
+            <option value="">Все статусы</option>
+            <option value="paid">Оплатили</option>
+            <option value="unpaid">Не оплатили</option>
+            <option value="partial">Частично</option>
+          </select>
+        </div>
         <div class="class-content" id="classContent">
           <div class="empty-state">Выберите класс</div>
         </div>
@@ -210,6 +229,10 @@
       <div class="page" id="page-debtors">
         <div class="page-header">
           <h1 class="page-title">Должники</h1>
+          <div class="btn-group">
+            <button class="btn-secondary" id="copyDebtorsBtn">📋 Копировать список</button>
+            <button class="btn-secondary" id="exportDebtorsCsvBtn">↓ CSV</button>
+          </div>
         </div>
         <div class="month-selector">
           <label>Месяц:</label>
@@ -237,14 +260,22 @@
       <div class="page" id="page-payments">
         <div class="page-header">
           <h1 class="page-title">История платежей</h1>
-          <button class="btn-primary" id="addPaymentBtn">+ Добавить платёж</button>
+          <div class="btn-group">
+            <button class="btn-secondary" id="exportPaymentsCsvBtn">↓ CSV</button>
+            <button class="btn-secondary" id="exportPaymentsPdfBtn">↓ PDF</button>
+            <button class="btn-primary" id="addPaymentBtn">+ Добавить платёж</button>
+          </div>
         </div>
         <div class="filters-bar">
+          <input type="text" id="searchStudent" placeholder="🔍 Поиск по имени..." class="search-input">
           <select id="filterClass">
             <option value="">Все классы</option>
           </select>
           <select id="filterMonth"></select>
           <select id="filterYear"></select>
+          <select id="filterStatus">
+            <option value="">Все статусы</option>
+          </select>
         </div>
         <div class="payments-table-wrap">
           <table class="payments-table">
